@@ -137,6 +137,16 @@ class HivePartitionSensor(BaseSensorOperator):
             hive_conn_id=conf.get('hooks', 'HIVE_DEFAULT_CONN_ID'),
             schema='default',
             *args, **kwargs):
+        """
+        :param partition: a sql-like string to filter on partition and
+            sub-partitions. This gets passed to the Metastore's
+            get_partitions_by_filter partition param.
+            Examples:
+                * "ds='2015-01-01'"
+                * "ds>='2015-01-01'"
+                * "ds='2015-01-01' AND type='best_type'"
+        :type partition: string
+        """
         super(HivePartitionSensor, self).__init__(*args, **kwargs)
         if '.' in table:
             schema, table = table.split('.')

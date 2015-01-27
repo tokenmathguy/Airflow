@@ -9,11 +9,10 @@ import pickle
 import re
 import signal
 import socket
-import sys
 
 from sqlalchemy import (
     Column, Integer, String, DateTime, Text, Boolean, ForeignKey)
-from sqlalchemy import func
+from sqlalchemy import func, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.serializer import loads, dumps
 from sqlalchemy.dialects.mysql import LONGTEXT
@@ -253,9 +252,10 @@ class TaskInstance(Base):
 
     __tablename__ = "task_instance"
 
-    task_id = Column(String(ID_LEN), primary_key=True)
-    dag_id = Column(String(ID_LEN), primary_key=True)
-    execution_date = Column(DateTime, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(ID_LEN))
+    dag_id = Column(String(ID_LEN))
+    execution_date = Column(DateTime)
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     duration = Column(Integer)
@@ -274,6 +274,22 @@ class TaskInstance(Base):
         self.unixname = getpass.getuser()
         if job:
             self.job_id = job.id
+
+    @classmethod
+    def get_or_create(cls, session, task, execution_date, job=None):
+        '''
+        Gets the task instance if it exists, creates a new one and returns
+        it if it doesn't.
+        '''
+        ti = session.query(cls).filter_by(
+            cls.dag_id == task.dag_id,
+            cls.task_id == task.task_id,
+            cls.execution_date == execution_date,
+        ).first()
+        if not ti:
+            ti = cls(task, execution_date, job)
+            session.add(ti)
+        return ti
 
     def command(
             self,
@@ -657,6 +673,12 @@ class TaskInstance(Base):
             self.duration = (self.end_date - self.start_date).seconds
         else:
             self.duration = None
+
+Index(
+    'idx_natural_pk',
+    TaskInstance.dag_id,
+    TaskInstance.task_id,
+    TaskInstance.execution_date)
 
 
 class Log(Base):
@@ -1279,3 +1301,42 @@ class Chart(Base):
     x_is_date = Column(Boolean, default=True)
     db = relationship("Connection")
     iteration_no = Column(Integer, default=0)
+
+
+class TaskInstanceRun(Base):
+    """
+    This entity keeps track of all the runs of task_instances
+    """
+
+    __tablename__ = "task_instance_run"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(String(ID_LEN), primary_key=True)
+    dag_id = Column(String(ID_LEN), primary_key=True)
+    execution_date = Column(DateTime, primary_key=True)
+    start_date = Column(DateTime)
+    end_date = Column(DateTime)
+    duration = Column(Integer)
+    state = Column(String(20))
+    try_number = Column(Integer)
+    hostname = Column(String(1000))
+    unixname = Column(String(1000))
+    job_id = Column(Integer)
+    task_instance_id = Column(Integer)
+
+    def __init__(self, task_instance):
+        ti = task_instance
+        self.dag_id = ti.dag_id
+        self.task_id = ti.task_id
+        self.execution_date = ti.execution_date
+        self.task = ti.task
+        self.sync(task_instance)
+
+    def sync(self, task_instance):
+        ti = task_instance
+        self.try_number = ti.try_number
+        self.unixname = ti.unixname
+        self.task_instance_id = ti.id
+        self.job_id = ti.id
+        self.hostname = ti.hostname
+        self.job_id = ti.id

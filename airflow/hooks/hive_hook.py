@@ -69,6 +69,18 @@ class HiveHook(BaseHook):
         return self.hive
 
     def check_for_partition(self, schema, table, partition):
+        '''
+        Checks whether a partition exists or not.
+
+        :param partition: a sql-like string to filter on partition and
+            sub-partitions. This gets passed to the Metastore's
+            get_partitions_by_filter partition param.
+            Examples:
+                * "ds='2015-01-01'"
+                * "ds>='2015-01-01'"
+                * "ds='2015-01-01' AND type='best_type'"
+        :type partition: string
+        '''
         self.hive._oprot.trans.open()
         partitions = self.hive.get_partitions_by_filter(
             schema, table, partition, 1)
