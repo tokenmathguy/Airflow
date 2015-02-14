@@ -644,7 +644,8 @@ class TaskInstance(Base):
 
         params = {}
         if hasattr(task, 'dag'):
-            params.update(task.dag.params)
+            if task.dag.params:
+                params.update(task.dag.params)
         if task.params:
             params.update(task.params)
 

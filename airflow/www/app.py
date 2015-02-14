@@ -601,7 +601,6 @@ class Airflow(BaseView):
         task = copy.copy(dag.get_task(task_id))
         ti = models.TaskInstance(task=task, execution_date=dttm)
         ti.render_templates()
-        title = "{dag_id}.{task_id} [{execution_date}] rendered"
         html_dict = {}
         for template_field in task.__class__.template_fields:
             content = getattr(task, template_field)
@@ -615,6 +614,7 @@ class Airflow(BaseView):
                 html_dict[template_field] = (
                     "<pre><code>" + content + "</pre></code>")
 
+        title = "Rendered template for {task_id} on {execution_date}"
         return self.render(
             'airflow/dag_code.html',
             html_dict=html_dict,
