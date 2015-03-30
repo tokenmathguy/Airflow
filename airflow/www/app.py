@@ -15,6 +15,9 @@ from flask.ext.admin.contrib.sqla import ModelView
 from flask.ext.cache import Cache
 from flask import request
 import sqlalchemy as sqla
+from flask.ext.sqlalchemy import SQLAlchemy
+from flask.ext.script import Manager
+from flask.ext.migrate import Migrate, MigrateCommand
 from wtforms import Form, DateTimeField, SelectField, TextAreaField
 
 from pygments import highlight
@@ -93,6 +96,11 @@ dagbag = models.DagBag(os.path.expanduser(conf.get('core', 'DAGS_FOLDER')))
 utils.pessimistic_connection_handling()
 
 app = Flask(__name__)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+manager = Manager(app)
+manager.add_command('db', MigrateCommand)
+
 app.config['SQLALCHEMY_POOL_RECYCLE'] = 3600
 
 login.login_manager.init_app(app)
@@ -1530,3 +1538,6 @@ mv = KnowEventTypeView(
     Session, name="Known Event Types", category="Manage")
 admin.add_view(mv)
 '''
+
+if __name__ == '__main__':
+    manager.run()
