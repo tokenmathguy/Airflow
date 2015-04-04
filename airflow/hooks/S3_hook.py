@@ -1,3 +1,4 @@
+import copy
 import logging
 import json
 import re
@@ -127,6 +128,18 @@ class S3Hook(BaseHook):
         Returns the boto S3Connection object.
         '''
         return self.connection
+
+    def __deepcopy__(self, memo):
+        # Swiwtcharoo to go around connection not being deepcopyable
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k not in ('connection'):
+                setattr(result, k, copy.deepcopy(v, memo))
+
+        result.connection = self.connection
+        return result
 
     def check_for_bucket(self, bucket_name):
         '''
