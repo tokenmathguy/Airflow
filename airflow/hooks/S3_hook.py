@@ -105,6 +105,15 @@ class S3Hook(BaseHook):
         self.__dict__.update(d)
         self.__dict__['connection'] = self.get_conn()
 
+    def _parse_s3_url(s3url):
+        parsed_url = urlparse(s3url)
+        if parsed_url.netloc == '':
+            raise Exception('Please provide a bucket_name')
+        else:
+            bucket_name = parsed_url.netloc
+            key = parsed_url.path
+            return (bucket_name, key)
+
     def get_conn(self):
         '''
         Returns the boto S3Connection object.
@@ -143,7 +152,7 @@ class S3Hook(BaseHook):
 
     def get_bucket(self, bucket_name):
         '''
-        Returns a boto.s3.bucket object
+        Returns a boto.s3.bucket.Bucket object
 
         :param bucket_name: the name of the bucket
         :type bucket_name: str
@@ -187,14 +196,23 @@ class S3Hook(BaseHook):
         Checks that a key exists in a bucket
         '''
         if bucket_name is None:
-            parsed_url = urlparse(key)
-            if parsed_url.netloc == '':
-                raise Exception('Please provide a bucket_name')
-            else:
-                bucket_name = parsed_url.netloc
-                key = parsed_url.path
+            (bucket_name, key) = self._parse_s3_url(key)
         bucket = self.get_bucket(bucket_name)
         return bucket.get_key(key) is not None
+
+    def get_key(self, key, bucket_name=None):
+        '''
+        Returns a boto.s3.key.Key object
+
+        :param key: the path to the key
+        :type key: str
+        :param bucket_name: the name of the bucket
+        :type bucket_name: str
+        '''
+        if bucket_name is None:
+            (bucket_name, key) = self._parse_s3_url(key)
+        bucket = self.get_bucket(bucket_name)
+        return bucket.get_key(key)
 
     def check_for_prefix(self, bucket_name, prefix, delimiter):
         '''
@@ -206,3 +224,18 @@ class S3Hook(BaseHook):
         leaf_prefix = prefix_split[1]
         plist = self.list_prefixes(bucket_name, previous_level, delimiter)
         return False if plist is None else prefix in plist
+
+    def load_file(self, filename,
+                  key, bucket_name=None,
+                  replace=False):
+        if bucket_name is None:
+            (bucket_name, key) = self._parse_s3_url(key)
+        bucket = self.get_bucket(bucket_name)
+        if not self.check_for_key(key, bucket_name):
+            key_obj = bucket.new_key(key_name=key)
+        else:
+            key_obj = bucket.get_key(key)
+        key_size = key_obj.set_contents_from_filename(filename, replace=replace)
+        logging.info("The key {key} now contains"
+                     " {key_size} bytes".format(**locals()))
+
