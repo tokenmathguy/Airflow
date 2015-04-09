@@ -82,22 +82,12 @@ class S3ToHiveTransfer(BaseOperator):
         conn = self.s3.get_conn()
         if not conn.check_for_key(self.key):
             raise Exception("The key {0} does not exists".format(self.key))
-
-        # Krishna this is where you should start
-        # http://boto.readthedocs.org/en/latest/ref/s3.html#module-boto.s3.key
-        # And look at the S3 Hook
-        # We also need to provide the structure of the file somehow
+        s3_key_object = conn.get_key(self.key)
         with NamedTemporaryFile("w") as f:
-            # This needs to be personalized for the S3 hook
-            csv_writer = csv.writer(f, delimiter=self.delimiter)
-            field_dict = OrderedDict()
-            for field in cursor.description:
-                field_dict[field[0]] = self.type_map(field[1])
-            csv_writer.writerows(cursor)
+            logging.info("Dumping S3 file {0} contents to local file {1}".format(self.key, f.name))
+            s3_key_object.get_contents_to_file(f)
             f.flush()
-            cursor.close()
             conn.close()
-            # This should be somewhat similar, but might need to be adapted
             logging.info("Loading file into Hive")
             self.hive.load_file(
                 f.name,
