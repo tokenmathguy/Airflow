@@ -29,6 +29,7 @@ _operators = {
         'TimeSensor',
     ],
     'subdag_operator': ['SubDagOperator'],
+    's3_to_hive_operator': ['S3ToHiveTransfer'],
     }
 
 _import_module_attrs(globals(), _operators)
