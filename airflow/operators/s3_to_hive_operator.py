@@ -1,4 +1,3 @@
-from collections import OrderedDict
 import csv
 import logging
 from tempfile import NamedTemporaryFile
@@ -48,14 +47,14 @@ class S3ToHiveTransfer(BaseOperator):
     __mapper_args__ = {
         'polymorphic_identity': 'S3ToHiveOperator'
     }
-    template_fields = ('key', 'partition', 'hive_table')
+    template_fields = ('s3_key', 'partition', 'hive_table')
     template_ext = ()
     ui_color = '#a0e08c'
 
     @apply_defaults
     def __init__(
             self,
-            key,
+            s3_key,
             field_dict,
             hive_table,
             delimiter=',',
@@ -67,32 +66,32 @@ class S3ToHiveTransfer(BaseOperator):
             hive_cli_conn_id='hive_cli_default',
             *args, **kwargs):
         super(S3ToHiveTransfer, self).__init__(*args, **kwargs)
-        self.key = key
+        self.s3_key = s3_key
+        self.field_dict = field_dict
         self.hive_table = hive_table
-        self.partition = partition
+        self.delimiter = delimiter
         self.create = create
         self.recreate = recreate
-        self.delimiter = source_delimiter
+        self.partition = partition
         self.headers = headers
         self.hive = HiveCliHook(hive_cli_conn_id=hive_cli_conn_id)
-        self.s3 = S3Hook(s3_conn_id=mysql_conn_id)
+        self.s3 = S3Hook(s3_conn_id=s3_conn_id)
 
     def execute(self, context):
         logging.info("Downloading S3 file")
-        conn = self.s3.get_conn()
-        if not conn.check_for_key(self.key):
-            raise Exception("The key {0} does not exists".format(self.key))
-        s3_key_object = conn.get_key(self.key)
+        if not self.s3.check_for_key(self.s3_key):
+            raise Exception("The key {0} does not exists".format(self.s3_key))
+        s3_key_object = self.s3.get_key(self.s3_key)
         with NamedTemporaryFile("w") as f:
-            logging.info("Dumping S3 file {0} contents to local file {1}".format(self.key, f.name))
+            logging.info("Dumping S3 file {0} contents to local file {1}".format(self.s3_key, f.name))
             s3_key_object.get_contents_to_file(f)
             f.flush()
-            conn.close()
+            self.s3.connection.close()
             logging.info("Loading file into Hive")
             self.hive.load_file(
                 f.name,
                 self.hive_table,
-                field_dict=field_dict,
+                field_dict=self.field_dict,
                 create=self.create,
                 partition=self.partition,
                 delimiter=self.delimiter,

@@ -105,7 +105,7 @@ class S3Hook(BaseHook):
         self.__dict__.update(d)
         self.__dict__['connection'] = self.get_conn()
 
-    def _parse_s3_url(s3url):
+    def _parse_s3_url(self, s3url):
         parsed_url = urlparse(s3url)
         if parsed_url.netloc == '':
             raise Exception('Please provide a bucket_name')
