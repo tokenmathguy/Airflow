@@ -107,7 +107,7 @@ class S3Hook(BaseHook):
 
     def _parse_s3_url(self, s3url):
         parsed_url = urlparse(s3url)
-        if parsed_url.netloc == '':
+        if not parsed_url.netloc:
             raise Exception('Please provide a bucket_name')
         else:
             bucket_name = parsed_url.netloc
@@ -195,7 +195,7 @@ class S3Hook(BaseHook):
         '''
         Checks that a key exists in a bucket
         '''
-        if bucket_name is None:
+        if not bucket_name:
             (bucket_name, key) = self._parse_s3_url(key)
         bucket = self.get_bucket(bucket_name)
         return bucket.get_key(key) is not None
@@ -209,7 +209,7 @@ class S3Hook(BaseHook):
         :param bucket_name: the name of the bucket
         :type bucket_name: str
         '''
-        if bucket_name is None:
+        if not bucket_name:
             (bucket_name, key) = self._parse_s3_url(key)
         bucket = self.get_bucket(bucket_name)
         return bucket.get_key(key)
@@ -228,6 +228,23 @@ class S3Hook(BaseHook):
     def load_file(self, filename,
                   key, bucket_name=None,
                   replace=False):
+        """
+        Loads a local file to S3
+
+        This is provided as a convenience to drop a file in S3. It uses the 
+        boto infrastructure to ship a file to s3. It is currently using only
+        a single part download, and should not be used to move large files.  
+
+        :param filename: name of the file to load.
+        :type filename: str
+        :param key: S3 key that will point to the file
+        :type key: str
+        :param bucket_name: Name of the bucket in which to store the file
+        :type bucket_name: str
+        :param replace: A flag to decide whther or not to overwrite the key
+            if it already exists
+        :type replace: bool
+        """
         if bucket_name is None:
             (bucket_name, key) = self._parse_s3_url(key)
         bucket = self.get_bucket(bucket_name)

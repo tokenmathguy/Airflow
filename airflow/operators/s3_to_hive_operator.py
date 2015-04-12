@@ -1,7 +1,5 @@
-import csv
 import logging
 from tempfile import NamedTemporaryFile
-import boto
 
 from airflow.hooks import HiveCliHook, S3Hook
 from airflow.models import BaseOperator
@@ -23,8 +21,11 @@ class S3ToHiveTransfer(BaseOperator):
     stage the data into a temporary table before loading it into its
     final destination using a ``HiveOperator``.
 
-    :param key: The key to be retrieved from S3
-    :type key: str
+    :param s3_key: The key to be retrieved from S3
+    :type s3_key: str
+    :param field_dict: A dictionary of the fields name in the file 
+        as keys and their Hive types as values
+    :type field_dict: dict
     :param hive_table: target Hive table, use dot notation to target a
         specific database
     :type hive_table: str
@@ -83,7 +84,8 @@ class S3ToHiveTransfer(BaseOperator):
             raise Exception("The key {0} does not exists".format(self.s3_key))
         s3_key_object = self.s3.get_key(self.s3_key)
         with NamedTemporaryFile("w") as f:
-            logging.info("Dumping S3 file {0} contents to local file {1}".format(self.s3_key, f.name))
+            logging.info("Dumping S3 file {0}"
+                " contents to local file {1}".format(self.s3_key, f.name))
             s3_key_object.get_contents_to_file(f)
             f.flush()
             self.s3.connection.close()
