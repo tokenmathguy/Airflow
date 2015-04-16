@@ -77,10 +77,16 @@ class S3Hook(BaseHook):
         self.s3_conn = self.get_connection(s3_conn_id)
         self.profile = None
         self._sts_conn_required = False
+        self._creds_in_config_file = False
         try:
             self.extra_params = json.loads(self.s3_conn.extra)
-            self.s3_config_format = self.extra_params['s3_config_format']
-            self.s3_config_file = self.extra_params['s3_config_file']
+            if 'aws_secret_access_key' in self.extra_params:
+                self._a_key = self.extra_params['aws_access_key_id']
+                self._s_key = self.extra_params['aws_secret_access_key']
+            else:
+                self._creds_in_config_file = True
+                self.s3_config_format = self.extra_params['s3_config_format']
+                self.s3_config_file = self.extra_params['s3_config_file']
             if 'profile' in self.extra_params:
                 self.profile = self.extra_params['profile']
             self._sts_conn_required = 'aws_account_id' in self.extra_params
@@ -119,9 +125,13 @@ class S3Hook(BaseHook):
         Returns the boto S3Connection object.
         '''
         _s3_conn = self.get_connection(self.s3_conn_id)
-        a_key, s_key = _parse_s3_config(self.s3_config_file,
-                                        self.s3_config_format,
-                                        self.profile)
+        if self._creds_in_config_file:
+            a_key, s_key = _parse_s3_config(self.s3_config_file,
+                                            self.s3_config_format,
+                                            self.profile)
+        else:
+            a_key = self._a_key
+            s_key = self._s_key
         if self._sts_conn_required:
             sts_connection = STSConnection(aws_access_key_id=a_key,
                                            aws_secret_access_key=s_key,
