@@ -241,9 +241,9 @@ class S3Hook(BaseHook):
         """
         Loads a local file to S3
 
-        This is provided as a convenience to drop a file in S3. It uses the 
+        This is provided as a convenience to drop a file in S3. It uses the
         boto infrastructure to ship a file to s3. It is currently using only
-        a single part download, and should not be used to move large files.  
+        a single part download, and should not be used to move large files.
 
         :param filename: name of the file to load.
         :type filename: str
