@@ -1,7 +1,24 @@
 # Stat Daemon
 ----
 
-The `stat_daemon` utility passively updates metadata for tables, files, etc.
+`stat_daemon` is a utility passively monitors for changes to metadata and updates it accordingly.  Current supported data types are hive tables, hdfs directories and s3 buckets.  Data is pushed to a MySQL (or Sqlite) table with the following schema:
+```SQL
+CREATE TABLE {table_name} (
+    type    CHAR(32) NOT NULL,
+    path    TEXT NOT NULL,
+    stat    CHAR(64),
+    val     FLOAT,
+    ts      INT
+);
+```
+The columns are defined as follows:
+* type: type of data (hive, hdfs, etc.)
+* path: hive table name (with db), hdfs path, etc.
+* stat: type of stat (sum, count, size, etc.)
+* val: value of the stat
+* ts: creation timestamp
+
+Type and path together are required to form a unique key.  (In rare cases, path might collide for different types).
 
 ## Quickstart
 ```bash
@@ -12,7 +29,7 @@ stat_daemon create_table
 stat_daemon start --taskfolder /path/to/tasks
 ```
 
-## Example Stats Job Definition
+## Example Job Definition File
 Stats job files are .py files that live in /path/to/tasks (similar to Airflow DAG definition files).
 ```py
 from airflow.hooks import HiveMetastoreHook
@@ -27,7 +44,7 @@ for table in metastore_hook.get_tables(db):
     # if there are partitions, process each sub-partition as a separate path
     if table.partitionKeys:
         path += '/'
-        path += '/'.join([{}=%'.format(p.name) for p in table.partitionKeys])
+        path += '/'.join(['{}=%'.format(p.name) for p in table.partitionKeys])
     HiveStats(
             path=path,
             queue=queue
@@ -79,11 +96,11 @@ stat_daemon create_table
 # show records from the database:
 stat_daemon show_stats --limit 5
 "   type                                  path      stat  val          ts
-0  hive  core_data.fct_bookings/ds=2008-05-28  non_null    1  1431651421
-1  hive  core_data.fct_bookings/ds=2008-05-31  non_null    1  1431651422
-2  hive  core_data.fct_bookings/ds=2008-06-18  non_null    1  1431651423
-3  hive  core_data.fct_bookings/ds=2008-06-24  non_null    1  1431651423
-4  hive  core_data.fct_bookings/ds=2008-07-08  non_null    1  1431651424"
+0  hive  default.test_table/ds=2008-05-28  non_null    1  1431651421
+1  hive  default.test_table/ds=2008-05-31  non_null    1  1431651422
+2  hive  default.test_table/ds=2008-06-18  non_null    1  1431651423
+3  hive  default.test_table/ds=2008-06-24  non_null    1  1431651423
+4  hive  default.test_table/ds=2008-07-08  non_null    1  1431651424"
 # clear records from the database:
-stat_daemon clear_stats --path core_data.fct_bookings/ds=2015-% --type hive
+stat_daemon clear_stats --path default.test_table/ds=2008% --type hive
 ```
