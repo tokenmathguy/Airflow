@@ -1,7 +1,7 @@
 # Stat Daemon
 ----
 
-`stat_daemon` is a utility passively monitors for changes to metadata and updates it accordingly.  Current supported data types are hive tables, hdfs directories and s3 buckets.  Data is pushed to a MySQL (or Sqlite) table with the following schema:
+`stat_daemon` is a utility that passively monitors for changes to metadata and updates it accordingly.  Current supported data types are hive tables, hdfs directories and s3 buckets.  Data is pushed to a MySQL or sqlite table with the following schema:
 ```SQL
 CREATE TABLE {table_name} (
     type    CHAR(32) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE {table_name} (
     ts      INT
 );
 ```
-The columns are defined as follows:
+The columns represent the following:
 * type: type of data (hive, hdfs, etc.)
 * path: hive table name (with db), hdfs path, etc.
 * stat: type of stat (sum, count, size, etc.)
@@ -26,11 +26,11 @@ Type and path together are required to form a unique key.  (In rare cases, path 
 stat_daemon create_table
 
 # start the daemon
-stat_daemon start --taskfolder /path/to/tasks
+stat_daemon start --taskfolder /path/to/jobs
 ```
 
-## Example Job Definition File
-Stats job files are .py files that live in /path/to/tasks (similar to Airflow DAG definition files).
+## Example Job File
+Stats job files are .py files that live in a particular directory /path/to/jobs (similar to Airflow DAG definition files).
 ```py
 from airflow.hooks import HiveMetastoreHook
 from stat_daemon.task import StatsQueue, HiveStats, HdfsStats
@@ -52,15 +52,14 @@ for table in metastore_hook.get_tables(db):
 ```
 
 ## Configuring
-The CLI provides more fine-grained control over how jobs are run:
+The CLI provides more fine-grained control over how many jobs are run, and on what interval:
 ```bash
 # Update max 1000 items per cycle, sleep 1 hour before updating
 stat_daemon start --taskfolder /path/to/tasks --maxjobs=1000 --sleep=3600
 ```
 
 ## Plugins
-The stats collected are completely modular.  Simply add a reference to your
-plugin in the stats definition file:
+`stat_deamon` ships with a default plugin for each metadata source type.  Users can also specify custom plugins by simply adding a reference in the job file:
 ```py
 HiveStats(
         path=path,
@@ -76,9 +75,6 @@ import logging
 import time
 
 def get_rows(args):
-    """
-    Demo updater
-    """
     try:
         row1 = ['demo', args.path,  'stat1', 1, int(time.time())]
         row2 = ['demo', args.path,  'stat2', 2, int(time.time())]
@@ -88,8 +84,8 @@ def get_rows(args):
 ```
 
 
-## Other options
-The command-line utility provides some helper functions for communicating with the database:
+## Other commands
+`stat_daemon` provides some helper functions for communicating with the database:
 ```bash
 # instantiate the database (add --drop flag to re-create existing db):
 stat_daemon create_table
