@@ -52,8 +52,9 @@ class TaskLoader(object):
             for dirpath, dirnames, filenames in os.walk(root):
                 for idx, item in enumerate(filenames):
                     try:
-                        logging.info("Loading taskfile {}.".format(item))
-                        taskfile = imp.load_source('task_{}'.format(idx), item)
+                        path = '{dirpath}/{item}'.format(**locals())
+                        logging.info("Loading taskfile {}.".format(path))
+                        taskfile = imp.load_source('task_{}'.format(idx), path)
                         for var_name in dir(taskfile):
                             var = getattr(taskfile, var_name)
                             if isinstance(var, StatsQueue):
