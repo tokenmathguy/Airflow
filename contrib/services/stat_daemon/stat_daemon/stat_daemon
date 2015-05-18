@@ -5,7 +5,6 @@ import imp
 import logging
 import sys
 import time
-import yaml
 from stat_daemon import plugins
 from stat_daemon.util import require_args
 from stat_daemon.task import TaskRunner
