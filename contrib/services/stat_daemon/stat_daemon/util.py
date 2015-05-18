@@ -51,7 +51,7 @@ def update_args(args, task):
     return args_
 
 
-class MetadataTable:
+class MetadataTable(object):
 
     """
     Interface to the metadata table
@@ -132,7 +132,7 @@ class MetadataTable:
         db.run(sql)
 
 
-class Reporter:
+class Reporter(object):
 
     """
     Reports on the status of data
