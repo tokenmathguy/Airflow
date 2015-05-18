@@ -14,6 +14,9 @@ def get_rows(args):
                 include_toplevel=True, include_children=False):
             row = ['hdfs', args.path, 'size', item['length'], int(time.time())]
             rows.append(row)
+            count = sum(1 for _ in hdfs.ls([item]))
+            row = ['hdfs', args.path, 'item_count', count, int(time.time())]
+            rows.append(row)
             break
         return rows
     except:
