@@ -202,7 +202,8 @@ def get_parser():
     parser_create.add_argument("--drop",
                                action='store_true',
                                help="Drop and re-create the table")
-    parser_test = add_args(parser_create, {'dest'})
+    parser_create = add_args(parser_create, {'dest', 'sql_conn_id'})
+    parser_create.set_defaults(func=create_table)
     ht = "Clear stats matching a given pattern"
     parser_delete = subparsers.add_parser('clear_stats', help=ht)
     parser_delete = add_args(parser_delete,
