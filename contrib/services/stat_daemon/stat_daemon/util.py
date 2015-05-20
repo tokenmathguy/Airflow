@@ -71,7 +71,7 @@ class MetadataTable(object):
             {table}
         WHERE
             type = '{key}'
-            AND path = '{path}'
+            AND path LIKE '{path}'
         ;
         """.format(table=self.table_name, key=key, path=path)
         logging.info("Executing SQL: " + sql)
