@@ -20,7 +20,7 @@ class HiveStats(object):
         (Override this function to create custom mappings)
         """
         stats = ["COUNT({col}) AS non_null__{col}"]
-        if col.type in {'double', 'int', 'bigint', 'float', 'double'}:
+        if col.type in {'double', 'int', 'bigint', 'float'}:
             stats += ['SUM({col}) AS sum__{col}',
                       'MIN({col}) AS min__{col}',
                       'MAX({col}) AS max__{col}',
