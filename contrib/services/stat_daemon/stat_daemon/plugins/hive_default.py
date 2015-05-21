@@ -10,7 +10,9 @@ class HiveStats(object):
     def __init__(self, args):
         metastore = HiveMetastoreHook(args.metastore_conn_id)
         self.table = metastore.get_table(args.path.split('/')[0])
-        self.partition_list = args.path.split('/')[1:]
+        self.partition_list = None
+        if '/' in args.path:
+            self.partition_list = args.path.split('/')[1:]
         self.presto_conn_id = args.presto_conn_id
         self.path = args.path
 
@@ -60,7 +62,8 @@ class HiveStats(object):
         row = hook.get_first(hql=sql)
         if not row:
             raise Exception("The query returned None")
-        return [['hive', self.path, stat.lower().split('as ')[-1],
+        path = 'hive:' + self.path
+        return [[path, stat.lower().split('as ')[-1],
                  val, int(time.time())] for stat, val in zip(stats, row)]
 
 
