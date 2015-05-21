@@ -27,10 +27,10 @@ def clear_stats(args):
     Clear stats matching type and path
     """
     require_args(args, {'type', 'path'})
-    logging.info("Deleting items like: {}/{}".format(args.type, args.path))
+    logging.info("Deleting items like: {}:{}".format(args.type, args.path))
     table = MetadataTable(table_name=args.dest,
                           sql_conn_id=args.sql_conn_id)
-    table.delete(args.type, args.path)
+    table.delete_records(args.path, args.type, args.filters)
 
 
 def show_stats(args):
@@ -155,8 +155,12 @@ def add_args(parser, args=None):
                             default="presto_default")
     if 'dest' in args:
         parser.add_argument("--dest",
-                            default="daemon_stats",
+                            default="metadata",
                             help="Table to write stats to")
+    if 'filters' in args:
+        parser.add_argument("--filters",
+                             help="Where clause")
+
     if 'taskfolder' in args:
         parser.add_argument("--taskfolder",
                             nargs='+',
@@ -178,8 +182,7 @@ def add_args(parser, args=None):
                             choices=['local', 'celery'])
     if 'type' in args:
         parser.add_argument("--type",
-                            help="Data type",
-                            choices=['hive', 'hdfs', 'local_fs', 's3'])
+                            help="Data type")
     if 'path' in args:
         parser.add_argument("--path",
                             help="Data path")
@@ -207,7 +210,8 @@ def get_parser():
     ht = "Clear stats matching a given pattern"
     parser_delete = subparsers.add_parser('clear_stats', help=ht)
     parser_delete = add_args(parser_delete,
-                             {'type', 'path', 'dest', 'sql_conn_id'})
+                             {'type', 'path', 'dest', 'filters',
+                             'sql_conn_id'})
     parser_delete.set_defaults(func=clear_stats)
     ht = "List the tasks that will be performed"
     parser_ls_tasks = subparsers.add_parser('ls_tasks', help=ht)
@@ -222,14 +226,11 @@ def get_parser():
     parser_start.set_defaults(func=start)
     ht = "Show stats"
     parser_show = subparsers.add_parser('show_stats', help=ht)
-    parser_show.add_argument("--filters",
-                             nargs='+',
-                             help="Where clause")
     parser_show.add_argument("--limit",
                              type=int,
                              default=1000,
                              help="Limit clause")
-    parser_show = add_args(parser_show, {'dest', 'sql_conn_id'})
+    parser_show = add_args(parser_show, {'dest', 'filters', 'sql_conn_id'})
     parser_show.set_defaults(func=show_stats)
     ht = "Run in test mode"
     parser_test = subparsers.add_parser('test', help=ht)
