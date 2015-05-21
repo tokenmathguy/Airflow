@@ -61,19 +61,38 @@ class MetadataTable(object):
         self.table_name = table_name
         self.sql_conn_id = sql_conn_id
 
-    def delete(self, key, path):
+    def get_path(self, type, path):
         """
-        Deletes outdated 
+        Returns the path in the table (combination of data type and path)
         """
+        if type == '':
+            return path
+        else:
+            return '{}:{}'.format(type, path)
+
+    def delete_records(self, path, type='', filters=None):
+        """
+        Deletes records
+        """
+        table = self.table_name
+        path = self.get_path(type, path)
         db = _get_sql_hook(self.sql_conn_id)
         sql = """\
         DELETE FROM
             {table}
         WHERE
-            type = '{key}'
-            AND path LIKE '{path}'
-        ;
-        """.format(table=self.table_name, key=key, path=path)
+            path_id IN (
+                SELECT
+                    id
+                FROM
+                    {table}_paths
+                WHERE
+                    name = '{path}'
+            );
+        """
+        if filters:
+            sql += " AND {filters}"
+        sql = (sql + ";").format(**locals())
         logging.info("Executing SQL: " + sql)
         db.run(sql)
 
@@ -83,18 +102,16 @@ class MetadataTable(object):
         """
         db = _get_sql_hook(self.sql_conn_id)
         table = self.table_name
-        filters = filters or []
-        where = ' AND '.join(filters)
         sql = """\
         SELECT
             *
         FROM
-            {table}
+            v_{table}
         """
-        if where:
+        if filters:
             sql += """\
             WHERE
-                {where}
+                {filters}
             """
         sql += """\
         LIMIT
@@ -107,30 +124,90 @@ class MetadataTable(object):
         """
         Returns the underlying hook
         """
+        if not rows:
+            return
         db = _get_sql_hook(self.sql_conn_id)
-        db.insert_rows(self.table_name, rows)
+        paths = set([row[0] for row in rows])
+        values = ','.join(["('{}')".format(path) for path in paths])
+        table = self.table_name
+        sql = """\
+        INSERT INTO {table}_paths 
+        (name) VALUES {values} ON DUPLICATE KEY UPDATE name=name;
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db.run(sql)
+        names = ', '.join(["'{}'".format(p) for p in paths])
+        sql = """\
+        SELECT
+            id
+            , name
+        FROM
+            {table}_paths
+        WHERE
+            name IN ({names})
+        ;
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db.run(sql)
+        data = db.get_records(sql)
+        path_to_id = {path:id for id, path in data}
+        rows_mapped = [[path_to_id[row[0]]] + row[1:] for row in rows]
+        db.insert_rows(self.table_name, rows_mapped)
 
     def create(self, drop=False):
         """
         Creates the metadata table
         """
         db = _get_sql_hook(self.sql_conn_id)
+        table = self.table_name
         if drop:
-            sql = "DROP TABLE IF EXISTS {};".format(self.table_name)
+            sql = "DROP TABLE IF EXISTS {table};".format(**locals())
+            logging.info("Executing SQL: \n" + sql)
+            db.run(sql)
+            sql = "DROP TABLE IF EXISTS {table}_paths;".format(**locals())
+            logging.info("Executing SQL: \n" + sql)
+            db.run(sql)
+            sql = "DROP VIEW IF EXISTS v_{table};".format(**locals())
             logging.info("Executing SQL: \n" + sql)
             db.run(sql)
         sql = """\
-        CREATE TABLE {table} (
-            type    CHAR(32) NOT NULL,
-            path    TEXT NOT NULL,
-            stat    CHAR(64),
-            val     FLOAT,
-            ts      INT
+        CREATE TABLE IF NOT EXISTS {table}_paths (
+            id      BIGINT  NOT NULL AUTO_INCREMENT,
+            name    TEXT NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE (name(256))
         );
-        """.format(table=self.table_name)
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db.run(sql)        
+        sql = """\
+        CREATE TABLE IF NOT EXISTS {table} (
+            path_id BIGINT NOT NULL,
+            stat    CHAR(64) NOT NULL,
+            val     FLOAT,
+            ts      INT,
+            INDEX path_id_FK (path_id)
+        );
+        """.format(**locals())
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
-
+        sql = """\
+        CREATE OR REPLACE VIEW v_{table} AS
+        SELECT
+            p.name AS path
+            , s.stat
+            , s.val
+            , s.ts
+        FROM
+            {table} s
+        JOIN
+            {table}_paths p
+        ON
+            s.path_id = p.id
+        ;        
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db.run(sql)
 
 class Reporter(object):
 
@@ -184,11 +261,10 @@ class MetadataReporter(Reporter):
     """
 
     def __init__(
-            self, table_name, key, path,
+            self, table_name, path,
             sql_conn_id='airflow_default'):
         self.table_name = table_name
         self.sql_conn_id = sql_conn_id
-        self.key = key
         self.path = path
 
     def get_updated_timestamps(self):
@@ -197,20 +273,20 @@ class MetadataReporter(Reporter):
         db = _get_sql_hook(self.sql_conn_id)
         sql = """\
         SELECT
-              type
-            , path
-            , stat
-            , ts
+              path
+            , MIN(ts)
         FROM
-            {table}
+            v_{table}
         WHERE
-            type LIKE '{key}'
-            AND path LIKE '{path}'
+            path LIKE '%{path}'
+        GROUP BY
+            path
         ;
-        """.format(table=self.table_name, key=self.key, path=self.path)
+        """.format(table=self.table_name, path=self.path)
         logging.info("Executing SQL: \n" + sql)
         data = db.get_records(sql)
-        return [{'path': item[1], 'ts': item[3]} for item in data]
+        return [{'path': ':'.join(item[0].split(':')[1:]),
+                    'ts': item[1]} for item in data]
 
 
 class LocalFsReporter(Reporter):

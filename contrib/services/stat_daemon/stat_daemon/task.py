@@ -15,7 +15,6 @@ class TaskList(object):
         require_args(args, {'type', 'path'})
         metadata = MetadataReporter(
             table_name=args.dest,
-            key=args.type,
             path=args.path,
             sql_conn_id=args.sql_conn_id)
         self.update, self.delete = [], []
@@ -93,7 +92,7 @@ class TaskRunner(object):
                             sql_conn_id=args.sql_conn_id)
         for item in tasks.delete:
             logging.info("Deleting outdated item: {}".format(item))
-            tbl.delete(args.type, item)
+            tbl.delete_records(item)
         for item in tasks.update:
             key = '{}-{}'.format(args.type, item)
             cmd = "stat_daemon update "
