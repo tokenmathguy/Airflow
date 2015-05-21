@@ -12,12 +12,16 @@ def get_rows(args):
         rows = []
         for item in hdfs.du([args.path],
                 include_toplevel=True, include_children=False):
-            row = ['hdfs', args.path, 'size', item['length'], int(time.time())]
+            path = 'hdfs:' + args.path
+            row = [path, 'size', item['length'], int(time.time())]
             rows.append(row)
-            count = sum(1 for _ in hdfs.ls([item]))
-            row = ['hdfs', args.path, 'item_count', count, int(time.time())]
+            count = 0
+            if item:
+                count = sum(1 for _ in hdfs.ls([args.path]))
+            row = [path, 'item_count', count, int(time.time())]
             rows.append(row)
             break
         return rows
-    except:
+    except Exception as e:
         logging.error("Failed to stat: {}".format(args.path))
+        logging.error(e)
