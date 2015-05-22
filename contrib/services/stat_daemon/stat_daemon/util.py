@@ -9,6 +9,7 @@ import sys
 
 from airflow.hooks import HDFSHook, MySqlHook, PrestoHook, SqliteHook
 
+
 def _get_sql_hook(sql_conn_id):
     """
     Local helper function to get a SQL hook
@@ -150,7 +151,7 @@ class MetadataTable(object):
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
         data = db.get_records(sql)
-        path_to_id = {path:id for id, path in data}
+        path_to_id = {path: id for id, path in data}
         rows_mapped = [[path_to_id[row[0]]] + row[1:] for row in rows]
         db.insert_rows(self.table_name, rows_mapped)
 
@@ -179,7 +180,7 @@ class MetadataTable(object):
         );
         """.format(**locals())
         logging.info("Executing SQL: \n" + sql)
-        db.run(sql)        
+        db.run(sql)
         sql = """\
         CREATE TABLE IF NOT EXISTS {table} (
             path_id BIGINT NOT NULL,
@@ -208,6 +209,7 @@ class MetadataTable(object):
         """.format(**locals())
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
+
 
 class Reporter(object):
 
@@ -271,6 +273,7 @@ class MetadataReporter(Reporter):
         """
         """
         db = _get_sql_hook(self.sql_conn_id)
+        path = self.path.replace('*', '%')
         sql = """\
         SELECT
               path
@@ -282,11 +285,11 @@ class MetadataReporter(Reporter):
         GROUP BY
             path
         ;
-        """.format(table=self.table_name, path=self.path)
+        """.format(table=self.table_name, path=path)
         logging.info("Executing SQL: \n" + sql)
         data = db.get_records(sql)
         return [{'path': ':'.join(item[0].split(':')[1:]),
-                    'ts': item[1]} for item in data]
+                 'ts': item[1]} for item in data]
 
 
 class LocalFsReporter(Reporter):
@@ -324,8 +327,12 @@ class HdfsReporter(Reporter):
         """
         try:
             hdfs = HDFSHook(self.hdfs_conn_id).get_conn()
-            data = [{'path': item['path'], 'ts':item['modification_time']} for
-                    item in hdfs.ls([self.path])]
+            data = [{'path': item['path'], 
+                        'ts':item['modification_time']/1000} for
+                    item in hdfs.ls([self.path],
+                                    recurse=False,
+                                    include_toplevel=True,
+                                    include_children=False)]
             return data
         except:
             logging.error("HdfsReporter: Failed to stat {}".format(self.path))

@@ -15,12 +15,12 @@ def get_rows(args):
             path = 'hdfs:' + args.path
             row = [path, 'size', item['length'], int(time.time())]
             rows.append(row)
-            count = 0
-            if item:
-                count = sum(1 for _ in hdfs.ls([args.path]))
-            row = [path, 'item_count', count, int(time.time())]
-            rows.append(row)
             break
+        count = 0
+        if item:
+            count = sum(1 for _ in hdfs.ls([args.path]))
+        row = [path, 'item_count', count, int(time.time())]
+        rows.append(row)
         return rows
     except Exception as e:
         logging.error("Failed to stat: {}".format(args.path))
