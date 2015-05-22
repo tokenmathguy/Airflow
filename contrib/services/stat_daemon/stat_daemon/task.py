@@ -13,6 +13,7 @@ class TaskList(object):
 
     def __init__(self, args):
         require_args(args, {'type', 'path'})
+        print args.path
         metadata = MetadataReporter(
             table_name=args.dest,
             path=args.path,
