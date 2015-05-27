@@ -42,15 +42,15 @@ def get_outliers(df):
     if not ('max_tol' in df.columns or 'min_tol' in df.columns):
         return []
     outliers = []
-    for col in df.columns:
-        for i, item in enumerate(df[col]):
-            idx = int(pd.to_datetime(df.index[i]).strftime("%s"))*1000
-            if 'max_tol' in df.columns:
-                if item > df['max_tol'][i]:
-                    outliers.append([idx, item])
-            if 'min_tol' in df.columns:
-                if item < df['min_tol'][i]:
-                    outliers.append([idx, item])
+    col = 'Residuals' if 'Residuals' in df.columns else df.columns[0]
+    for i, item in enumerate(df[col]):
+        idx = int(pd.to_datetime(df.index[i]).strftime("%s"))*1000
+        if 'max_tol' in df.columns:
+            if item > df['max_tol'][i]:
+                outliers.append([idx, item])
+        if 'min_tol' in df.columns:
+            if item < df['min_tol'][i]:
+                outliers.append([idx, item])
     options = {'name': 'outliers', 'data': outliers}
     options['marker'] = {'enabled': True, 'radius': 3}
     options['line'] = {'enabled': False}
@@ -63,7 +63,8 @@ def highchart_timeseries(df, title=''):
     series = df_to_series(df)
     outliers = get_outliers(df)
     if outliers:
-        series += get_flags(outliers[0]['data'], df.columns[0])
+        col = 'Residuals' if 'Residuals' in df.columns else df.columns[0]
+        series += get_flags(outliers[0]['data'], col)
     chart = {
         'title': {
             'text': title
