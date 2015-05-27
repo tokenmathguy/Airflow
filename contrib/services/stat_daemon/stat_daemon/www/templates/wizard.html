@@ -1,0 +1,118 @@
+{% extends 'admin/base.html' %}
+
+{% macro li(name, active, step) %}
+  {% set cls = 'active' if active else 'other' %}
+    <li class="{{ cls }}"><a href="/admin/timeseries/wizard/step{{ step }}"> {{ name }}</a></li>
+{% endmacro %}
+
+{% block head_css %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='typeahead.css') }}">
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='navwizard.css') }}">
+{% endblock %}
+
+{% block body %}
+
+<body>
+  <h1>Metadata Wizard</h1>
+  <ul class="nav nav-wizard">
+    {% set active = True if step == 1 else False %}
+    {{ li('Select source', active, 1) }}
+    {% set active = True if step == 2 else False %}
+    {{ li('Select stats', active, 2) }}
+    <li><a href="/admin/timeseries/plot"> Show Plot </a></li>
+  </ul>
+  <div class="panel panel-primary">
+      <div class="panel panel-body">    
+          <div class="row">
+              <br><br>
+              <div class="col-md-3"></div>
+              <div id="search-filter" class="col-md-4">
+                <input id="search-text" class="typeahead" type="text" placeholder="Source filter"  data-toggle="tooltip" data-placement="top" title="Enter filter here">
+              </div>
+              <div class="col-md-1"></div>
+                <button id="next-btn" class="btn btn-success" style="display: none" data-toggle="tooltip" data-placement="right" title="Advance to the next step"> <span class="glyphicon glyphicon-chevron-right"></span></button>
+              </div>
+              </div>
+              <div class="col-md-3"></div>
+              <br><br>
+          </div>
+      </div>
+  </div>
+</body>
+
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script src="{{ url_for('static', filename='typeahead.js') }}"></script>
+<script type="text/javascript">
+
+$( document ).ready(function() {
+  $('#next-btn').hide()
+  $('#next-btn').click(function() {
+    var filters = $("#search-text").val();
+    {% if step == 1 %}
+    document.location = window.location.href.replace('step1', 'step2') + '?source=' + encodeURIComponent(filters);
+    {% elif step == 2 %}
+    document.location = window.location.href.replace('wizard/step2', 'plot') + '&stat=' + encodeURIComponent(filters);
+    {% endif %}
+  });
+  $(function () {
+    $('[data-toggle="tooltip"]').tooltip()
+  })
+  $(function () {
+    $('[data-toggle="popover"]').popover()
+  })
+});
+
+var substringMatcher = function(strs) {
+  return function findMatches(q, cb) {
+    var matches, substringRegex;
+      matches = [];
+      substrRegex = new RegExp(q, 'i');
+      $.each(strs, function(i, str) {
+        if (substrRegex.test(str)) {
+          matches.push(str);
+        }
+      });
+      cb(matches);
+  };
+};
+
+var search = {{ data|safe }};
+
+$('#search-filter .typeahead').typeahead({
+  hint: true,
+  highlight: true,
+  minLength: 1
+},
+{
+  name: 'search',
+  source: substringMatcher(search)
+});
+
+var timeout = null;
+var searchFilters = ''
+$("#search-text").on("input",function(e){
+  if($(this).data("lastval")!= $(this).val()){
+    $(this).data("lastval",$(this).val());
+    searchFilters = $(this).val()
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    //if no new input is entered within 0.5 seconds, apply the filters
+    timeout = setTimeout(function() {
+      if (searchFilters == '') {
+        $('#next-btn').fadeOut();
+      }
+      else {
+        $('#next-btn').fadeIn();
+      }
+    }, 500);
+  };
+});
+
+</script>
+
+{% endblock %}
