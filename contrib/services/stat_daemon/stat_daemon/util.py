@@ -1,13 +1,16 @@
 import copy
 import datetime
+import glob
 import imp
 import json
-import glob
 import logging
 import os
+import random
+import time
 import sys
 
 from airflow.hooks import HDFSHook, MySqlHook, PrestoHook, SqliteHook
+import pandas as pd
 
 
 def _get_sql_hook(sql_conn_id):
@@ -121,6 +124,24 @@ class MetadataTable(object):
         """
         return db.get_pandas_df(sql.format(**locals()))
 
+    def __insert_paths_sql(self, paths):
+        """
+        Generate insert statement
+        """
+        values = ','.join(["('{}')".format(path) for path in paths])
+        table = self.table_name
+        sql = ""
+        if self.is_mysql():
+            return """\
+            INSERT INTO {table}_paths 
+            (name) VALUES {values} ON DUPLICATE KEY UPDATE name=name;
+            """.format(**locals())
+        else:
+            return """\
+            INSERT OR REPLACE INTO {table}_paths 
+            (name) VALUES {values};
+            """.format(**locals())
+
     def insert_rows(self, rows):
         """
         Returns the underlying hook
@@ -128,13 +149,9 @@ class MetadataTable(object):
         if not rows:
             return
         db = _get_sql_hook(self.sql_conn_id)
-        paths = set([row[0] for row in rows])
-        values = ','.join(["('{}')".format(path) for path in paths])
         table = self.table_name
-        sql = """\
-        INSERT INTO {table}_paths 
-        (name) VALUES {values} ON DUPLICATE KEY UPDATE name=name;
-        """.format(**locals())
+        paths = set([row[0] for row in rows])
+        sql = self.__insert_paths_sql(paths)
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
         names = ', '.join(["'{}'".format(p) for p in paths])
@@ -155,7 +172,58 @@ class MetadataTable(object):
         rows_mapped = [[path_to_id[row[0]]] + row[1:] for row in rows]
         db.insert_rows(self.table_name, rows_mapped)
 
-    def create(self, drop=False):
+    def create_test_data(self):
+        """
+        Creates test data
+        """
+        logging.info("Creating test data.")
+        rows = []
+        val1 = random.random()
+        val2 = random.random()
+        for ds in pd.date_range('2011-01-01', datetime.datetime.utcnow()):
+            val1 += random.random() - 0.5
+            rows.append(['test:stat_daemon/' + ds.strftime('%Y-%m-%d'), 
+                          'test_stat_1', val1, time.time()])
+            val2 += random.random() - 0.5
+            rows.append(['test:stat_daemon/' + ds.strftime('%Y-%m-%d'), 
+                          'test_stat_2', val2, time.time()])
+        for i in range(0, len(rows), 10):
+            self.insert_rows(rows[i:min(i+10, len(rows))])
+
+    def is_mysql(self):
+        """
+        Attempts to guess whether the connection is mysql
+        """
+        if 'sqlite' in self.sql_conn_id:
+            return False
+        else:
+            return True
+
+    def __path_table_sql(self):
+        """
+        Some slight difference between MySQL and sqlite
+        """
+        table = self.table_name
+        if self.is_mysql():
+            return """\
+            CREATE TABLE IF NOT EXISTS {table}_paths (
+                id      BIGINT  NOT NULL AUTO_INCREMENT,
+                name    TEXT NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE (name(256))
+            );
+            """.format(**locals())
+        else:
+            return """\
+            CREATE TABLE IF NOT EXISTS {table}_paths (
+                id      INTEGER PRIMARY KEY,
+                name    TEXT NOT NULL,
+                UNIQUE (name)
+            );
+            """.format(**locals())
+
+
+    def create_table(self, drop=False, with_test_data=False):
         """
         Creates the metadata table
         """
@@ -171,29 +239,28 @@ class MetadataTable(object):
             sql = "DROP VIEW IF EXISTS v_{table};".format(**locals())
             logging.info("Executing SQL: \n" + sql)
             db.run(sql)
-        sql = """\
-        CREATE TABLE IF NOT EXISTS {table}_paths (
-            id      BIGINT  NOT NULL AUTO_INCREMENT,
-            name    TEXT NOT NULL,
-            PRIMARY KEY (id),
-            UNIQUE (name(256))
-        );
-        """.format(**locals())
+        sql = self.__path_table_sql()
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
+        index = ', INDEX path_id_FK (path_id)' if self.is_mysql() else ''
         sql = """\
         CREATE TABLE IF NOT EXISTS {table} (
             path_id BIGINT NOT NULL,
             stat    CHAR(64) NOT NULL,
             val     FLOAT,
-            ts      INT,
-            INDEX path_id_FK (path_id)
+            ts      INT
+            {index}
         );
         """.format(**locals())
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
+        sql = """
+        DROP VIEW IF EXISTS v_{table};
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db.run(sql)        
         sql = """\
-        CREATE OR REPLACE VIEW v_{table} AS
+        CREATE VIEW v_{table} AS
         SELECT
             p.name AS path
             , s.stat
@@ -209,7 +276,8 @@ class MetadataTable(object):
         """.format(**locals())
         logging.info("Executing SQL: \n" + sql)
         db.run(sql)
-
+        if with_test_data:
+            self.create_test_data()
 
 class Reporter(object):
 
