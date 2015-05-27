@@ -20,5 +20,6 @@ setup(
     # long_description=open("README.txt").read(),
     # Dependent packages (distributions)
     install_requires=[
+        #aiflow (requires dev version for now...)
     ],
 )
