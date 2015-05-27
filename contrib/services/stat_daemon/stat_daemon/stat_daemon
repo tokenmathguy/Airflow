@@ -19,7 +19,7 @@ def create_table(args):
     """
     table = MetadataTable(table_name=args.dest,
                           sql_conn_id=args.sql_conn_id)
-    table.create(drop=args.drop)
+    table.create_table(drop=args.drop, with_test_data=args.with_test_data)
 
 
 def clear_stats(args):
@@ -205,6 +205,9 @@ def get_parser():
     parser_create.add_argument("--drop",
                                action='store_true',
                                help="Drop and re-create the table")
+    parser_create.add_argument("--with_test_data",
+                               action='store_true',
+                               help="Create the table with test data")
     parser_create = add_args(parser_create, {'dest', 'sql_conn_id'})
     parser_create.set_defaults(func=create_table)
     ht = "Clear stats matching a given pattern"
