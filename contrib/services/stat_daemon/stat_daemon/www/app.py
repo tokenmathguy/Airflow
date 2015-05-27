@@ -209,9 +209,15 @@ class TimeSeries(BaseView):
             if detrend:
                 df = stat_daemon.tsa.detrend(df)
             if not max_tol:
-                max_tol = df[df.columns[0]].max()
+                if 'Residuals' in df.columns:
+                    max_tol = df['Residuals'].max()
+                else:
+                    max_tol = df[df.columns[0]].max()
             if not min_tol:
-                min_tol = df[df.columns[0]].min()
+                if 'Residuals' in df.columns:
+                    min_tol = df['Residuals'].min()
+                else:
+                    min_tol = df[df.columns[0]].min()
             df['max_tol'] = max_tol
             df['min_tol'] = min_tol
             min_min_tol = 2.0*min_tol*(1 if min_tol < 0 else -1)

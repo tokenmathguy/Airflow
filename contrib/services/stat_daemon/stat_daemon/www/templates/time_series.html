@@ -35,20 +35,19 @@
       <div class="col-md-4">
         <center>
             <h3>
-            Choose transformation
+            Detrend
             </h3>
             <hr>
         </center>
         <div class="row">
-            <div class="col-md-4"> <input type="checkbox" aria-label="..."> YoY </div>
-            <div class="col-md-4"> <input type="checkbox" aria-label="..."> WoW </div>
-            <div class="col-md-4"> <input type="checkbox" aria-label="..."> HoH </div>
-            <div class="col-md-4"> <input type="checkbox" aria-label="..."> STL </div>
-            <div class="col-md-4"> <input type="checkbox" aria-label="..."> ARIMA </div>
-            <div class="col-md-4"> <input type="checkbox" aria-label="..."> S-ARIMA </div>
+            <center>
+                <button type="button" id="detrend-btn" class="btn btn-info" data-toggle="tooltip" data-placement="top" title="Remove trends on plot residuals"> Residuals <span class="glyphicon glyphicon-signal"></span></button>
+            </center>
         </div>
+        <div class="row">
+            <center><div id="trend-info"></div></center>
+        </div>        
       </div>
-
       <div class="col-md-4">
         <center>
             <h3>
@@ -123,6 +122,13 @@ $("#tol-slider").slider({
         }
     },
     width: 1000,
+});
+
+$("#detrend-btn").click(function(){
+    var params = getQueryParams()
+    params['detrend'] = true
+    var query_string = formatQueryString(params)
+    document.location = window.location.pathname + query_string
 });
 
 var timeout = null;
