@@ -1246,8 +1246,8 @@ class BaseOperator(Base):
     def append_only_new(self, l, item):
         if any([item is t for t in l]):
             raise Exception(
-                'Dependency {self}, {item} already registered'
-                ''.format(**locals()))
+                "Dependency {self}, {item} already registered"
+                "".format(**locals()))
         else:
             l.append(item)
 
@@ -1256,7 +1256,10 @@ class BaseOperator(Base):
             task_or_task_list = [task_or_task_list]
         for task in task_or_task_list:
             if not isinstance(task_or_task_list, list):
-                raise Exception('Expecting a task')
+                raise Exception("Expecting a task")
+            if task.dag_id != self.dag_id:
+                raise Exception("The task referenced has a different DAG id.\n"
+                                "Please use an external task sensor")
             if upstream:
                 self.append_only_new(task._downstream_list, self)
                 self.append_only_new(self._upstream_list, task)
