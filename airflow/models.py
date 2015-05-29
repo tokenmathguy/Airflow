@@ -1255,11 +1255,19 @@ class BaseOperator(Base):
         if isinstance(task_or_task_list, BaseOperator):
             task_or_task_list = [task_or_task_list]
         for task in task_or_task_list:
+            if task.task_id == self.task_id and self.dag_id == task.dag_id:
+                logging.debug("Trying to set task {self.dag_id}.{self.task_id}"
+                              "as a relative of itself.".format(self=self))
+                continue
             if not isinstance(task_or_task_list, list):
-                raise Exception("Expecting a task")
+                raise Exception('Expecting a task')
             if task.dag_id != self.dag_id:
-                raise Exception("The task referenced has a different DAG id.\n"
-                                "Please use an external task sensor")
+                if "adhoc" in self.dag_id or "adhoc" in task.dag_id:
+                    logging.debug("Setting dependencies for tasks"
+                                  " not attached to a DAG. Use dag.add_task.")
+                else:
+                    raise Exception("Trying to set a task from another dag.\n"
+                                    "Use an ExternalTaskSensor")
             if upstream:
                 self.append_only_new(task._downstream_list, self)
                 self.append_only_new(self._upstream_list, task)
