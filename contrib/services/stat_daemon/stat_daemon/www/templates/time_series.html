@@ -3,6 +3,7 @@
 {% block head_css %}
 {{ super() }}
 <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='bootstrap-slider.css') }}"></link>
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='bootstrap-datetimepicker.min.css') }}"></link>
 <style>
 #tolSlider .slider-selection {
     background: #BABABA;
@@ -11,6 +12,11 @@
 {% endblock %}
 
 {% block body %}
+<div id="alert-outliers" class="alert alert-info alert-dismissible" role="alert" style="display: none">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  Outliers flagged.  Go to <a href="/admin/tags">Tags</a> for more info.
+</div>
+
 <div class="panel panel-default">
     <div class="panel panel-body">    
         <div class="row">
@@ -22,39 +28,83 @@
 <div class="well">
     <div class="row">
 
-      <div class="col-md-4">
+      <div class="col-md-3">
         <center>
             <h3>
             Set tolerance
             </h3>
             <hr>
         </center>
-        <input style="width:300px" id="tol-slider" data-slider-id='tolSlider' type="text" class="span2" value="" data-slider-min="{{ min_min_tol }}" data-slider-max="{{ max_max_tol }}" data-slider-step="{{ (max_max_tol - min_min_tol)/steps }}" data-slider-value="[{{ min_tol }},{{ max_tol }}]"/> 
+        <input style="width:225px" id="tol-slider" data-slider-id='tolSlider' type="text" class="span2" value="" data-slider-min="{{ min_min_tol }}" data-slider-max="{{ max_max_tol }}" data-slider-step="{{ (max_max_tol - min_min_tol)/steps }}" data-slider-value="[{{ min_tol }},{{ max_tol }}]"/> 
       </div>
 
-      <div class="col-md-4">
+      <div class="col-md-6">
         <center>
             <h3>
-            Detrend
+            Apply filters
             </h3>
             <hr>
         </center>
+
         <div class="row">
-            <center>
-                <button type="button" id="detrend-btn" class="btn btn-info" data-toggle="tooltip" data-placement="top" title="Remove trends on plot residuals"> Residuals <span class="glyphicon glyphicon-signal"></span></button>
-            </center>
+          <div class="col-md-5">        
+            <div class="form-group">
+                <div class='input-group date' id='start-time'>
+                    <input type='text' id="start-time-input" class="form-control" />
+                    <span class="input-group-addon">
+                        <span class="glyphicon glyphicon-calendar"></span>
+                    </span>
+                </div>
+            </div>
+          </div>
+          <div class="col-md-5">        
+            <div class="form-group">
+                <div class='input-group date' id='end-time'>
+                    <input type='text' id='end-time-input' class="form-control"/>
+                    <span class="input-group-addon">
+                        <span class="glyphicon glyphicon-calendar"></span>
+                    </span>
+                </div>
+            </div>
+          </div>
+          <div class="col-md-2">
+          <button id="date-btn" class="btn btn-default btn-sm" data-toggle="tooltip" data-placement="top" title="Create alert for current context"><span class="glyphicon glyphicon-refresh"></span></button>
+          </div>        
+
+        </div>
+
+        <div class="row">
+          <div class="col-md-3"></div>
+          <div class="col-md-3">
+            <input id="checkbox-detrend" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Remove trend and plot residuals"> <span class="label label-info">Detrend</span>
+          </div>
+          <div class="col-md-3">        
+            <input id="checkbox-outliers" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Flag all outliers"> <span class="label label-info">Flag outliers</span>
+          </div>
+          <div class="col-md-3"></div>
         </div>
         <div class="row">
             <center><div id="trend-info"></div></center>
         </div>        
+
       </div>
-      <div class="col-md-4">
+      <!-- Alerts -->
+      <div class="col-md-3">
         <center>
             <h3>
             Create alert
             </h3>
             <hr>
         </center>
+        <div class="row">
+            <div class="col-md-12">
+                <center>
+                    <input style="width:200px" id="email" placeholder="email">
+                    <button id="alert-btn" class="btn btn-default btn-sm" data-toggle="tooltip" data-placement="top" title="Create alert for current context"><span class="glyphicon glyphicon-ok"></span></button>
+                </center>
+            </div>
+        </div>
+        <br>
         <div class="row">
             <center>
                 <input type="checkbox" aria-label="..."> <span class="label label-success">Info</span>
@@ -64,20 +114,57 @@
                 <input type="checkbox" aria-label="..."> <span class="label label-danger">Error</span>
             </center>
         </div>
-        <br>
-        <div class="row">
-            <div class="col-md-12">
-                <center>
-                    <input style="width:200px" id="email" placeholder="email">
-                    <button id="range-btn" class="btn btn-default btn-sm" data-toggle="tooltip" data-placement="top" title="Create alert for current context"><span class="glyphicon glyphicon-ok"></span></button>
-                </center>
-            </div>
-        </div>
+
       </div>
     </div>
     <hr/>
 </div>
 
+<!-- Modal -->
+<div class="modal fade" id="outliers-modal" tabindex="-1" role="dialog" aria-labelledby="outliers-modal-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="outliers-modal-label">Flag Outlier(s)</h4>
+      </div>
+      <div class="modal-body">
+          <div class="row"><div class="col-md-12">
+            <input style="width:300px" id="outliers-email" placeholder="email">
+          </div></div><br>
+          <div class="row"><div class="col-md-12">
+            <div class="btn-group">
+              <button id="btn-modal-dropdown" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+                Category <span class="caret"></span>
+              </button>
+              <ul id="modal-dropdown" class="dropdown-menu" role="menu">
+                <li><a href="javascript:setOutlierCategory(0)">Generic</a></li>
+                <li><a href="javascript:setOutlierCategory(1)">Logging Outage</a></li>
+                <li><a href="javascript:setOutlierCategory(2)">Missing Data</a></li>
+                <li><a href="javascript:setOutlierCategory(3)">Holiday / Special Event </a></li>
+              </ul>
+            </div>
+          </div></div><br>
+          <div class="row"><div class="col-md-12">
+            <textarea class="form-control" rows="5" id="outliers-comment" placeholder="comments"></textarea>
+          </div></div>
+          <div class="row"><div class="col-md-12">
+            <h3>
+            Tagged Items:
+            </h3>
+            <div class="well">
+                <ul id="li-tagged-items">
+                </ul>
+            </div>
+      </div></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button id="btn-submit-outliers" type="button" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}
 
@@ -87,10 +174,84 @@
 <script src="{{ url_for('static', filename='highcharts.js') }}"></script>
 <script src="{{ url_for('static', filename='highcharts-more.js') }}"></script>
 <script src="{{ url_for('static', filename='bootstrap-slider.js') }}"></script>
+<script src="{{ url_for('static', filename='moment.js') }}"></script>
+<script src="{{ url_for('static', filename='bootstrap-datetimepicker.min.js') }}"></script>
 <script type="text/javascript">
+
+var taggedOutliers = []
+function getTaggedOutliers() {
+    if (taggedOutliers.length > 0) {
+        return taggedOutliers
+    }
+    else {
+        return {{ outliers|safe }}        
+    }
+}
+
+function getTaggedOutliersList() {
+    var outliers = getTaggedOutliers()
+    var li = ''
+    for (i=0; i<outliers.length; i++) {
+        li += "<li>" + outliers[i] + "</li>"
+    }
+    return li
+}
+
+$("#btn-submit-outliers").click(function() {
+    $("#outliers-modal").modal('hide')
+    var params = getUpdatedParams()
+    params['author'] = $("#outliers-email").val()
+    params['comment'] = $("#outliers-comment").val()
+    params['category'] = outlierCategory
+    params['times'] = getTaggedOutliers()
+    $.ajax({
+      type: "POST",
+      url: '/admin/tags/add',
+      contentType: "application/json; charset=utf-8",
+      dataType: 'json',
+      data: JSON.stringify(params),
+      complete: function() {
+        $('#alert-outliers').show().delay(2500).fadeOut();
+        taggedOutliers = []
+      },
+      success: function(data) {
+        console.log("Ouliers flagged.  Go to /admin/tags to update them")
+      },
+      failure: function(err) {
+        console.log("Failed to create ouliers: " + err)
+      },
+    });
+});
+
+function getPlotOptions() {
+    return {
+        series: {
+            allowPointSelect: true,
+            point: {
+                events: {
+                    select: function () {
+                        taggedOutliers.push(moment.utc(this.category)
+                                      .format('YYYY-MM-DD HH:mm:ss'))
+                        $('#li-tagged-items').html(getTaggedOutliersList())
+                        $('#outliers-modal').modal('show');
+                    }
+                }
+            }
+        }
+    }
+}
+
 $(function () {
     var chart = JSON.parse('{{ chart|safe }}')
+    chart['plotOptions'] = getPlotOptions()
     $('#chart-div').highcharts('StockChart', chart)
+});
+
+$(function(){
+    $("#modal-dropdown li a").click(function(){
+      $("#btn-modal-dropdown").text($(this).text());
+      $("#btn-modal-dropdown").val($(this).text());
+   });
 });
 
 function getQueryParams() {
@@ -116,7 +277,9 @@ function formatQueryString(params) {
 $("#tol-slider").slider({
     formatter: function(val) {
         if (Array.isArray(val)) {
-            return "min: " + Math.round(val[0]*100)/100.0 + ", max: " + Math.round(val[1]*100)/100.0;
+            var ret = "min: " + Math.round(val[0]*100)/100.0;
+            ret += ", max: " + Math.round(val[1]*100)/100.0;
+            return ret
         } else {
             return val;
         }
@@ -124,11 +287,75 @@ $("#tol-slider").slider({
     width: 1000,
 });
 
-$("#detrend-btn").click(function(){
+$(function () {
     var params = getQueryParams()
-    params['detrend'] = true
-    var query_string = formatQueryString(params)
+    if ('detrend' in params) {
+        if (params['detrend'] == true || params['detrend'] == 'true') {
+            $("#checkbox-detrend").prop('checked', true);
+        }
+    }
+
+})
+
+$("#date-btn").click(refresh);
+
+var isDate = function(date) {
+    return ( (new Date(date) !== "Invalid Date" && !isNaN(new Date(date)) ));
+}
+
+var outlierCategory = 0
+function setOutlierCategory(cls) {
+    outlierCategory = cls;
+}
+
+function getUpdatedParams() {
+    var start_time = $("#start-time-input").val()
+    var end_time = $("#end-time-input").val()
+    var range = $("#tol-slider").val();
+    var min_tol = range.split(',')[0]
+    var max_tol = range.split(',')[1]
+    var detrend = $("#checkbox-detrend").is(':checked')
+    var params = getQueryParams()
+    if (isDate(start_time)) {
+        params['start_time'] = start_time
+    }
+    if (isDate(end_time)) {
+        params['end_time'] = end_time
+    }
+    params['min_tol'] = min_tol
+    params['max_tol'] = max_tol
+    params['detrend'] = detrend
+    return params
+}
+
+function refresh() {
+    var query_string = formatQueryString(getUpdatedParams())
     document.location = window.location.pathname + query_string
+}
+
+$(function () {
+    $('[data-toggle="tooltip"]').tooltip()
+});
+
+
+$(function () {
+    var params = getQueryParams()
+    var start_time = '2011-01-01 00:00:00'
+    var end_time = moment().format('YYYY-MM-DD 00:00:00')
+    if ('start_time' in params) {
+        start_time = params['start_time']
+    }
+    if ('end_time' in params) {
+        end_time = params['end_time']
+    }
+    $('#start-time').datetimepicker({
+        defaultDate: start_time,
+        format: 'YYYY-MM-DD HH:MM:SS'
+    });
+    $('#end-time').datetimepicker({
+        defaultDate: end_time,
+        format: 'YYYY-MM-DD HH:MM:SS',
+    });
 });
 
 var timeout = null;
@@ -138,23 +365,21 @@ $("#tol-slider").change(function(e){
     if (timeout !== null) {
       clearTimeout(timeout);
     }
-    //if no new input is entered within 0.5 seconds, apply the filters
-    timeout = setTimeout(function() {
-        var range = $("#tol-slider").val();
-        var min_tol = range.split(',')[0]
-        var max_tol = range.split(',')[1]
-        var params = getQueryParams()
-        params['min_tol'] = min_tol
-        params['max_tol'] = max_tol
-        var query_string = formatQueryString(params)
-        document.location = window.location.pathname + query_string
-    }, 500);
+    timeout = setTimeout(refresh, 500);
   };
 });
 
+$('#checkbox-detrend').click(refresh);
 
-$(function () {
-    $('[data-toggle="tooltip"]').tooltip()
+$('#checkbox-outliers').click(function() {
+    if ($(this).is(':checked')) {
+        taggedOutliers = []
+        $('#li-tagged-items').html(getTaggedOutliersList())
+        $('#outliers-modal').modal('show');
+        // the checkbox was checked 
+    } else {
+        // the checkbox was unchecked
+    }
 });
 
 </script>

@@ -1,6 +1,14 @@
+import datetime
 import json
 import numpy as np
 import pandas as pd
+
+def unix_time(dt):
+    """
+    """
+    epoch = datetime.datetime.utcfromtimestamp(0)
+    delta = dt - epoch
+    return delta.total_seconds()
 
 
 def df_to_series(df, points=False):
@@ -11,7 +19,8 @@ def df_to_series(df, points=False):
         for col in df.columns:
             data = []
             for i, item in enumerate(df[col]):
-                x = int(pd.to_datetime(df.index[i]).strftime("%s"))*1000
+                #x = int(pd.to_datetime(df.index[i]).strftime("%s"))*1000
+                x = unix_time(pd.to_datetime(df.index[i]))*1000
                 if not np.isnan(item):
                     data.append((x, item))
             options = {'name': col, 'data': data, 'id': col}
@@ -44,13 +53,19 @@ def get_outliers(df):
     outliers = []
     col = 'Residuals' if 'Residuals' in df.columns else df.columns[0]
     for i, item in enumerate(df[col]):
-        idx = int(pd.to_datetime(df.index[i]).strftime("%s"))*1000
+        idx = unix_time(pd.to_datetime(df.index[i]))*1000
         if 'max_tol' in df.columns:
             if item > df['max_tol'][i]:
                 outliers.append([idx, item])
         if 'min_tol' in df.columns:
             if item < df['min_tol'][i]:
                 outliers.append([idx, item])
+    return outliers
+
+def get_outliers_series(df):
+    """
+    """
+    outliers = get_outliers(df)
     options = {'name': 'outliers', 'data': outliers}
     options['marker'] = {'enabled': True, 'radius': 3}
     options['line'] = {'enabled': False}
@@ -61,7 +76,7 @@ def highchart_timeseries(df, title=''):
     """
     """
     series = df_to_series(df)
-    outliers = get_outliers(df)
+    outliers = get_outliers_series(df)
     if outliers:
         col = 'Residuals' if 'Residuals' in df.columns else df.columns[0]
         series += get_flags(outliers[0]['data'], col)

@@ -4,6 +4,7 @@ import dateutil.parser as dparser
 import json
 import logging
 import re
+import time
 import urllib
 
 import numpy as np
@@ -16,11 +17,11 @@ from flask import (Flask, flash, redirect, render_template,
 from flask.ext.admin import Admin, BaseView, expose, AdminIndexView
 from flask.ext.admin.contrib.sqla import ModelView
 from werkzeug.contrib.cache import SimpleCache
-from chart import highchart_timeseries
+from chart import get_outliers, highchart_timeseries
 
 import stat_daemon.tsa
 
-cache = SimpleCache(default_timeout=1)
+cache = SimpleCache(default_timeout=15)
 
 
 def cache_key(request):
@@ -35,6 +36,16 @@ def _get_sql_hook(sql_conn_id):
         return SqliteHook(sql_conn_id)
     else:
         return MySqlHook(sql_conn_id)
+
+
+def _is_mysql(sql_conn_id):
+    """
+    Attempts to guess whether the connection is mysql
+    """
+    if 'sqlite' in sql_conn_id:
+        return False
+    else:
+        return True
 
 
 class TimeSeries(BaseView):
@@ -148,19 +159,16 @@ class TimeSeries(BaseView):
             cache.set(cache_key(request), rendered_template)
             return rendered_template
 
-
     @expose('/plot')
     def plot(self):
         if cache.get(cache_key(request)):
             return cache.get(cache_key(request))
         else:
-            ts_start = request.args.get('start_date', '2008-05-28')
+            ts_start = request.args.get('start_time', '2008-05-28')
             start = self.get_datetime(ts_start)
-            ts_end = request.args.get('end_date')
+            ts_end = request.args.get('end_time', '')
             end = self.get_datetime(ts_end)
-            yoy = request.args.get('yoy')
-            wow = request.args.get('wow')
-            max_tol = self.parse_float(request.args.get('max_tol'))              
+            max_tol = self.parse_float(request.args.get('max_tol'))
             min_tol = self.parse_float(request.args.get('min_tol'))
             source, resp = self.parse_source(request)
             if not source:
@@ -205,7 +213,12 @@ class TimeSeries(BaseView):
                         data[stat] = pd.Series()
                     data[stat][time] = val
             df = pd.DataFrame(data)
-            detrend = request.args.get('detrend', False)
+            # drop everything except the first column for now
+            for col in df.columns[1:]:
+                df = df.drop(col, 1)
+            detrend = request.args.get('detrend', 'false')
+            if detrend.lower() == 'false' or detrend == '0':
+                detrend = False
             if detrend:
                 df = stat_daemon.tsa.detrend(df)
             if not max_tol:
@@ -230,31 +243,189 @@ class TimeSeries(BaseView):
                 max_max_tol = 1
             steps = self.parse_float(request.args.get('steps', 100))
             chart = highchart_timeseries(df)
-            rendered_template = self.render('time_series.html', 
-                chart=chart, max_tol=max_tol, min_tol=min_tol,
-                min_min_tol=min_min_tol, max_max_tol=max_max_tol, steps=steps)
+            outliers = pd.to_datetime(
+                [i*1000*1000 for i, j in get_outliers(df)])
+            outliers = [dt.strftime('%Y-%m-%d %H:%M:%S') for dt in outliers]
+            rendered_template = self.render('time_series.html',
+                                            chart=chart,
+                                            max_tol=max_tol,
+                                            min_tol=min_tol,
+                                            min_min_tol=min_min_tol,
+                                            max_max_tol=max_max_tol,
+                                            steps=steps,
+                                            outliers=outliers)
             cache.set(cache_key(request), rendered_template)
             return rendered_template
 
 
-class TagsView(BaseView):
+class Tags(BaseView):
 
     def __init__(self, name='Tags', category='Metadata',
                  table="metadata", sql_conn_id="stat_daemon"):
         """
         """
-        super(TagsView, self).__init__(name=name, category=category)
+        super(Tags, self).__init__(name=name, category=category)
         self.paths = []
         self.table_name = table
         self.sql_conn_id = sql_conn_id
+        sql = """
+        CREATE TABLE IF NOT EXISTS {table}_tags (
+            path        TEXT NOT NULL,
+            stat        CHAR(64),
+            category    INTEGER,
+            author      CHAR(64),
+            comment     TEXT,
+            ts          INT
+        )
+        ;
+        """.format(**locals())
+        logging.info(sql)
+        db = _get_sql_hook(self.sql_conn_id)
+        db.run(sql)
 
-    @expose('/')
+    def parse_param(self, request, param_name, col_name=None):
+        """
+        """
+        if not col_name:
+            col_name = param_name
+        val = request.args.get(param_name)
+        if val:
+            return "{col_name} LIKE '%{val}%'".format(**locals())
+        else:
+            return ''
+
+    @expose('/', methods=['GET', 'POST'])
     def index(self):
-        pass
+        """
+        """
+        table = self.table_name
+        where = []
+        where.append(self.parse_param(request, 'source', 'path'))
+        where.append(self.parse_param(request, 'stat'))
+        where.append(self.parse_param(request, 'author'))
+        where.append(self.parse_param(request, 'category'))
+        where = [w for w in where if w != '']
+        where = ' AND '.join(where)
+        if where.replace(' ', ''):
+            where = "WHERE " + where
+        sql = """
+        SELECT
+            *
+        FROM
+            {table}_tags
+        {where}
+        ;
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db = _get_sql_hook(self.sql_conn_id)
+        rows = db.get_records(sql)
+        formatted_rows = []
+        for rt in rows:
+            row = list(rt)
+            row[5] = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.gmtime(row[5]))
+            formatted_rows.append(row)
+        return self.render("tags.html", data=formatted_rows)
+    
+    @expose('/add', methods=['POST'])
+    def add_tags(self):
+        """
+        """
+        table = self.table_name
+        data = json.loads(request.data)
+        path = data['source']
+        stat = data['stat']
+        category = data.get('category', 0)
+        times = data.get('times', [])
+        comment = data.get('comment', '')
+        author = data.get('author', 'N/A')
+        tags = []
+        for ts in times:
+            ds = ts.split()[0]
+            sql = """
+            DELETE FROM
+                {table}_tags
+            WHERE
+                path like '%{path}%'
+                AND (path like '%{ts}' OR path like '%{ds}')
+                AND stat = '{stat}'
+            ;
+            """.format(**locals())
+            logging.info("Executing SQL: \n" + sql)
+            db = _get_sql_hook(self.sql_conn_id)
+            db.run(sql)
+            sql = """
+            SELECT
+                path
+            FROM
+                v_{table}
+            WHERE
+                path like '%{path}%'
+                AND (path like '%{ts}' OR path like '%{ds}')
+                AND stat = '{stat}'                
+            """.format(**locals())
+            logging.info("Executing SQL: \n" + sql)
+            rows = db.get_records(sql)
+            tags += [[row[0], stat, category, author, 
+                    comment, int(time.time())] for row in rows]
+        if tags:
+            db.insert_rows(table + '_tags', tags)
+        return ""
 
-# class TagsView(ModelView):
-# class AlertsView(ModelView):
-# class CaptainHindsightView
+    @expose('/del', methods=['POST'])
+    def del_tags(self):
+        """
+        """
+        table = self.table_name
+        data = json.loads(request.data)
+        items = data['items']
+        for item in items:
+            path = item['source']
+            stat = item['stat']
+            sql = """
+            DELETE FROM
+                {table}_tags
+            WHERE
+                path = '{path}'
+                AND stat = '{stat}'
+            ;
+            """.format(**locals())
+            logging.info("Executing SQL: \n" + sql)
+            db = _get_sql_hook(self.sql_conn_id)
+            db.run(sql)
+        return ""
+
+
+class Alerts(BaseView):
+
+    def __init__(self, name='Alerts', category='Metadata',
+                 table="metadata", sql_conn_id="stat_daemon"):
+        """
+        """
+        super(Alerts, self).__init__(name=name, category=category)
+        self.paths = []
+        self.table_name = table
+        self.sql_conn_id = sql_conn_id
+        sql = """
+        CREATE TABLE IF NOT EXISTS {table}_alerts (
+            path            TEXT,
+            stat            TEXT,
+            email           TEXT,
+            level           INTEGER,
+            subject         TEXT,
+            message         TEXT,
+            plugin          TEXT,
+            plugin_args     TEXT
+        )
+        ;
+        """.format(**locals())
+        logging.info(sql)
+        db = _get_sql_hook(self.sql_conn_id)
+        rows = db.run(sql)
+
+    @expose('/', methods=['GET', 'POST'])
+    def index(self):
+        return self.render("alerts.html")
 
 
 class StatDaemon(object):
@@ -272,8 +443,10 @@ class StatDaemon(object):
         views = []
         views.append(TimeSeries(table=self.table_name,
                                 sql_conn_id=self.sql_conn_id))
-        views.append(TagsView(table=self.table_name,
-                              sql_conn_id=self.sql_conn_id))
+        views.append(Tags(table=self.table_name,
+                          sql_conn_id=self.sql_conn_id))
+        views.append(Alerts(table=self.table_name,
+                            sql_conn_id=self.sql_conn_id))
         return views
 
     def get_app(self):

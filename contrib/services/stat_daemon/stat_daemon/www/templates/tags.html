@@ -1,0 +1,100 @@
+{% extends 'admin/base.html' %}
+
+{% set level = {0: 'generic', 1: 'outage', 2: 'missing', 3: 'holiday/special event'} %}
+{% block body %}
+<div class="panel panel-default">
+  <!-- Default panel contents -->
+  <div class="panel-heading">Alerts</div>
+
+  <!-- Table -->
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Path</th>
+        <th>Stat</th>
+        <th>Level</th>
+        <th>Author</th>
+        <th>Comment</th>
+        <th>Created at</th>
+        <th> <button id="btn-select-all" type="button" class="btn btn-primary">Select</button> 
+             <button id="btn-clear-selection" type="button" class="btn btn-default">Delete</button> 
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+     {% for row in data %}
+      <tr>
+        {% for col in row %}
+            <td>
+            {% if loop.index == 3 %}
+                {{ level[col] }}                
+            {% else %}
+                {{ col }}
+            {% endif %}
+            </td>
+        {% endfor %}
+            <td>
+                <center>
+                <input id="checkbox-{{ loop.index0 }}" type="checkbox" aria-label="...">
+                </center>
+            </td>
+      </tr>
+     {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script type="text/javascript">
+var allSelect = false
+$("#btn-select-all").click(function() {
+    allSelect = !allSelect
+    $("[id^=checkbox-]").prop('checked', allSelect);
+});
+
+$("#btn-clear-selection").click(function() {
+    var data = []
+    {% for row in data %}
+    data.push([])
+        {% for col in row %}
+    data[data.length-1].push("{{ col }}")
+        {% endfor %}
+    {% endfor %}
+    var params = {}
+    params['items'] = []
+    $("[id^=checkbox-]").each(function(){
+        if ($(this).is(':checked')) {
+            var id = $(this).attr('id')
+            var index = parseInt(id.split('checkbox-')[1])
+            var item = {}
+            console.log(index)
+            item['source'] = data[index][0]
+            item['stat'] = data[index][1]
+            params['items'].push(item)
+        }
+    });
+    if (params['items'].length > 0) {
+        $.ajax({
+          type: "POST",
+          url: '/admin/tags/del',
+          contentType: "application/json; charset=utf-8",
+          dataType: 'json',
+          data: JSON.stringify(params),
+          complete: function() {
+            console.log("Items deleted")
+            window.location.reload();
+          },
+          success: function() {
+            console.log("Items deleted")
+            window.location.reload();
+          },
+          failure: function() {
+            console.log("Failed to delete items: " + err)
+          },
+        });
+    }
+});
+</script>
+{% endblock %}

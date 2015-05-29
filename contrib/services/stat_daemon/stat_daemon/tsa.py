@@ -1,5 +1,5 @@
-import numpy as np
 import math
+import numpy as np
 
 def deviation_raw(x, y):
     """
@@ -52,7 +52,6 @@ def detrend(df):
     # fit polynomial to wow and yoy growth rates
     # extrapolate each data point from previous week and year
     dd = [sum(d) for d in delta]
-    print dd
     idx = np.argmin(dd)
     df['Trend'] = y[idx]
     df['Residuals'] = delta[idx]
