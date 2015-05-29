@@ -1262,9 +1262,10 @@ class BaseOperator(Base):
             if not isinstance(task_or_task_list, list):
                 raise Exception('Expecting a task')
             if task.dag_id != self.dag_id:
-                if "adhoc" in self.dag_id or "adhoc" in task.dag_id:
-                    logging.debug("Setting dependencies for tasks"
-                                  " not attached to a DAG. Use dag.add_task.")
+                if (self.dag_id == "adhoc_" + self.owner
+                        or task.dag_id == "adhoc_" + task.owner):
+                    logging.debug("Setting dependencies for tasks not added to"
+                                  " a DAG. Don't forget to use dag.add_task.")
                 else:
                     raise Exception("Trying to set a task from another dag.\n"
                                     "Use an ExternalTaskSensor")
