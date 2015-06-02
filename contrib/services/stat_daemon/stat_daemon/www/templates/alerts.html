@@ -1,34 +1,32 @@
 {% extends 'admin/base.html' %}
 {% import 'macros/crud.html' as crud %}
 
-{% set level = {0: 'generic', 1: 'outage', 2: 'missing', 3: 'holiday/special event'} %}
+{% set level = {0: 'info', 1: 'warning', 2: 'danger'} %}
+{% set level_text = {0: 'info', 1: 'warning', 2: 'error'} %}
 {% block body %}
 <div class="panel panel-default">
   <!-- Default panel contents -->
   <div class="panel-heading">Alerts</div>
-
   <!-- Table -->
   <table class="table">
     <thead>
       <tr>
-        <th>
+        <th> 
             <center>
             <button id="btn-select-all" type="button" class="btn btn-primary btn-sm" data-toggle="tooltip" data-placement="top" title="Select All">  <span class="glyphicon glyphicon-check"/> </button> 
             <button id="btn-clear-selection" type="button" class="btn btn-danger btn-sm" data-toggle="tooltip" data-placement="top" title="Delete Selected"><span class="glyphicon glyphicon-remove"/></button> 
             </center>
         </th>
-        <th>Path</th>
+        <th>Source</th>
         <th>Stat</th>
+        <th>Email</th>
         <th>Level</th>
-        <th>Author</th>
-        <th>Comment</th>
         <th>Created at</th>
       </tr>
     </thead>
     <tbody>
      {% for row in data %}
       <tr>
-        <center>
         <td>
             <center>
             <span id="edit-{{ loop.index0 }}" class="glyphicon glyphicon-pencil" aria-hidden="true" data-toggle="tooltip" data-placement="top" title="Edit"></span>
@@ -36,13 +34,15 @@
             </center>
         </td>
         {% for col in row %}
+            {% if loop.index in (1, 2, 3, 8) %}
             <td>
-            {% if loop.index == 3 %}
-                {{ level[col] }}                
-            {% else %}
                 {{ col }}
-            {% endif %}
             </td>
+            {% elif loop.index == 4 %}
+            <td>
+                <span class="label label-{{ level[col] }}"> {{ level_text[col] }} </span>
+            </td>
+            {% endif %}
         {% endfor %}
       </tr>
      {% endfor %}
@@ -55,8 +55,8 @@
 {% block tail %}
 {{ super() }}
 <script type="text/javascript">
-{{ crud.js(data,  
-    {0:'source', 1:'stat', 2:'category', 3:'author', 4:'comment', 5:'ts'}) }}
+{{ crud.js(data, {0:'source', 1:'stat', 2:'email', 3:'level', 4:'subject',
+                    5:'message', 6:'detrend', 7:'ts'}) }}
 
 $(function () {
     $('[data-toggle="tooltip"]').tooltip()

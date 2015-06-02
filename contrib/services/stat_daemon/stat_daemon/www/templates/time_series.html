@@ -12,40 +12,33 @@
 {% endblock %}
 
 {% block body %}
+<!-- Flash tags created -->
 <div id="alert-outliers" class="alert alert-info alert-dismissible" role="alert" style="display: none">
   <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
   Outliers flagged.  Go to <a href="/admin/tags">Tags</a> for more info.
 </div>
-
+<!-- Flash alert created -->
+<div id="alert-alert" class="alert alert-info alert-dismissible" role="alert" style="display: none">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  Alert created.  Go to <a href="/admin/alerts">Alerts</a> for more info.
+</div>
+<!-- Chart -->
 <div class="panel panel-default">
     <div class="panel panel-body">    
         <div class="row">
-            <div id="chart-div" style="min-width: 310px; height: 450px; margin: 0 auto"></div>
+            <div id="chart-div" style="min-width: 310px; height: 550px; margin: 0 auto"></div>
         </div>
     </div>
 </div>
-
+<!-- Bottom Panel -->
 <div class="well">
     <div class="row">
-
+      <!-- Slider -->
       <div class="col-md-3">
-        <center>
-            <h3>
-            Set tolerance
-            </h3>
-            <hr>
-        </center>
         <input style="width:225px" id="tol-slider" data-slider-id='tolSlider' type="text" class="span2" value="" data-slider-min="{{ min_min_tol }}" data-slider-max="{{ max_max_tol }}" data-slider-step="{{ (max_max_tol - min_min_tol)/steps }}" data-slider-value="[{{ min_tol }},{{ max_tol }}]"/> 
       </div>
-
+      <!-- Date Filters -->
       <div class="col-md-6">
-        <center>
-            <h3>
-            Apply filters
-            </h3>
-            <hr>
-        </center>
-
         <div class="row">
           <div class="col-md-5">        
             <div class="form-group">
@@ -57,7 +50,7 @@
                 </div>
             </div>
           </div>
-          <div class="col-md-5">        
+          <div class="col-md-5">
             <div class="form-group">
                 <div class='input-group date' id='end-time'>
                     <input type='text' id='end-time-input' class="form-control"/>
@@ -68,59 +61,32 @@
             </div>
           </div>
           <div class="col-md-2">
-          <button id="date-btn" class="btn btn-default btn-sm" data-toggle="tooltip" data-placement="top" title="Create alert for current context"><span class="glyphicon glyphicon-refresh"></span></button>
+          <button id="date-btn" class="btn btn-default btn-sm" data-toggle="tooltip" data-placement="top" title="Update date range"><span class="glyphicon glyphicon-refresh"></span></button>
           </div>        
-
         </div>
-
-        <div class="row">
-          <div class="col-md-3"></div>
-          <div class="col-md-3">
-            <input id="checkbox-detrend" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Remove trend and plot residuals"> <span class="label label-info">Detrend</span>
-          </div>
-          <div class="col-md-3">        
-            <input id="checkbox-outliers" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Flag all outliers"> <span class="label label-info">Flag outliers</span>
-          </div>
-          <div class="col-md-3"></div>
-        </div>
-        <div class="row">
-            <center><div id="trend-info"></div></center>
-        </div>        
-
       </div>
-      <!-- Alerts -->
+      <!-- Checkboxes -->
       <div class="col-md-3">
-        <center>
-            <h3>
-            Create alert
-            </h3>
-            <hr>
-        </center>
         <div class="row">
-            <div class="col-md-12">
-                <center>
-                    <input style="width:200px" id="email" placeholder="email">
-                    <button id="alert-btn" class="btn btn-default btn-sm" data-toggle="tooltip" data-placement="top" title="Create alert for current context"><span class="glyphicon glyphicon-ok"></span></button>
-                </center>
-            </div>
+          <div class="col-md-6">
+            <input id="checkbox-detrend" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Remove trend and plot residuals"> Detrend
+          </div>
+          <div class="col-md-6">        
+            <input id="checkbox-autoscale" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Autoscale tolerances"> Autoscale
+          </div>
         </div>
-        <br>
         <div class="row">
-            <center>
-                <input type="checkbox" aria-label="..."> <span class="label label-success">Info</span>
-                &nbsp
-                <input type="checkbox" aria-label="..."> <span class="label label-warning">Warning</span>
-                &nbsp
-                <input type="checkbox" aria-label="..."> <span class="label label-danger">Error</span>
-            </center>
+          <div class="col-md-6">
+            <input id="checkbox-outliers" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Flag all outliers"> Flag outliers
+          </div>
+          <div class="col-md-6">
+            <input id="checkbox-alert" type="checkbox" aria-label="..." data-toggle="tooltip" data-placement="top" title="Create alert for current parameters">Create Alert
+          </div>
         </div>
-
       </div>
     </div>
-    <hr/>
 </div>
-
-<!-- Modal -->
+<!-- Outlier Modal -->
 <div class="modal fade" id="outliers-modal" tabindex="-1" role="dialog" aria-labelledby="outliers-modal-label" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -130,14 +96,11 @@
       </div>
       <div class="modal-body">
           <div class="row"><div class="col-md-12">
-            <input style="width:300px" id="outliers-email" placeholder="email">
-          </div></div><br>
-          <div class="row"><div class="col-md-12">
             <div class="btn-group">
-              <button id="btn-modal-dropdown" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+              <button id="btn-outlier-category" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
                 Category <span class="caret"></span>
               </button>
-              <ul id="modal-dropdown" class="dropdown-menu" role="menu">
+              <ul id="outlier-category-dropdown" class="dropdown-menu" role="menu">
                 <li><a href="javascript:setOutlierCategory(0)">Generic</a></li>
                 <li><a href="javascript:setOutlierCategory(1)">Logging Outage</a></li>
                 <li><a href="javascript:setOutlierCategory(2)">Missing Data</a></li>
@@ -147,6 +110,9 @@
           </div></div><br>
           <div class="row"><div class="col-md-12">
             <textarea class="form-control" rows="5" id="outliers-comment" placeholder="comments"></textarea>
+          </div></div><br>
+          <div class="row"><div class="col-md-12">
+            <input style="width:300px" id="outliers-email" placeholder="email">
           </div></div>
           <div class="row"><div class="col-md-12">
             <h3>
@@ -165,7 +131,59 @@
     </div>
   </div>
 </div>
-
+<!-- Alert Modal -->
+<div class="modal fade" id="alert-modal" tabindex="-1" role="dialog" aria-labelledby="alert-modal-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="outliers-modal-label">Create Alert</h4>
+      </div>
+      <div class="modal-body">
+          <div class="row">
+            <div class="col-md-12">
+              <input style="width:300px" id="alert-email" placeholder="recipient@airbnb.com">
+            </div>
+          </div>
+          <br>
+          <div class="row">
+            <div class="col-md-12">
+              <input style="width:300px" id="alert-subject" placeholder="subject">
+            </div>
+          </div>
+          <br>
+          <div class="row"><div class="col-md-12">
+            <div class="btn-group">
+              <button id="btn-alert-level" type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+                Level <span class="caret"></span>
+              </button>
+              <ul id="alert-level-dropdown" class="dropdown-menu" role="menu">
+                <li><a href="javascript:setAlertCategory(0)">Info</a></li>
+                <li><a href="javascript:setAlertCategory(1)">Warning</a></li>
+                <li><a href="javascript:setAlertCategory(2)">Error</a></li>
+              </ul>
+            </div>
+          </div></div><br>
+          <div class="row"><div class="col-md-12">
+            <textarea class="form-control" rows="5" id="alert-content" placeholder="message content"></textarea>
+          </div></div><br>
+          <div class="row"><div class="col-md-12">
+            <h3>
+            Details:
+            </h3>
+            <div class="well">
+                <ul id="li-alert-parameters">
+                </ul>
+            </div>
+      </div></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button id="btn-submit-alert" type="button" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block tail %}
@@ -223,6 +241,35 @@ $("#btn-submit-outliers").click(function() {
     });
 });
 
+$("#btn-submit-alert").click(function() {
+    $("#alert-modal").modal('hide')
+    var params = getUpdatedParams()
+    params['email'] = $("#alert-email").val()
+    if (params['email'] == '') {
+        params['email'] = "N/A"
+    }
+    params['subject'] = $("#alert-subject").val()
+    params['level'] = alertLevel
+    params['message'] = $("#alert-content").val()
+    params['detrend'] = {{ detrend_info|safe }}
+    $.ajax({
+      type: "POST",
+      url: '/admin/alerts/crud',
+      contentType: "application/json; charset=utf-8",
+      dataType: 'json',
+      data: JSON.stringify({'create': params}),
+      complete: function() {
+        $('#alert-alert').show().delay(2500).fadeOut();
+      },
+      success: function(data) {
+        console.log("Ouliers flagged.  Go to /admin/tags to update them")
+      },
+      failure: function(err) {
+        console.log("Failed to create ouliers: " + err)
+      },
+    });
+});
+
 function getPlotOptions() {
     return {
         series: {
@@ -248,9 +295,13 @@ $(function () {
 });
 
 $(function(){
-    $("#modal-dropdown li a").click(function(){
-      $("#btn-modal-dropdown").text($(this).text());
-      $("#btn-modal-dropdown").val($(this).text());
+    $("#outlier-category-dropdown li a").click(function(){
+      $("#btn-outlier-category").text($(this).text());
+      $("#btn-outlier-category").val($(this).text());
+   });
+    $("#alert-level-dropdown li a").click(function(){
+      $("#btn-alert-level").text($(this).text());
+      $("#btn-alert-level").val($(this).text());
    });
 });
 
@@ -308,6 +359,11 @@ function setOutlierCategory(cls) {
     outlierCategory = cls;
 }
 
+var alertLevel = 0
+function setAlertCategory(cls) {
+    alertLevel = cls;
+}
+
 function getUpdatedParams() {
     var start_time = $("#start-time-input").val()
     var end_time = $("#end-time-input").val()
@@ -315,6 +371,7 @@ function getUpdatedParams() {
     var min_tol = range.split(',')[0]
     var max_tol = range.split(',')[1]
     var detrend = $("#checkbox-detrend").is(':checked')
+    var autoscale = $("#checkbox-autoscale").is(':checked')
     var params = getQueryParams()
     if (isDate(start_time)) {
         params['start_time'] = start_time
@@ -325,6 +382,7 @@ function getUpdatedParams() {
     params['min_tol'] = min_tol
     params['max_tol'] = max_tol
     params['detrend'] = detrend
+    params['autoscale'] = autoscale
     return params
 }
 
@@ -336,7 +394,6 @@ function refresh() {
 $(function () {
     $('[data-toggle="tooltip"]').tooltip()
 });
-
 
 $(function () {
     var params = getQueryParams()
@@ -369,18 +426,30 @@ $("#tol-slider").change(function(e){
   };
 });
 
-$('#checkbox-detrend').click(refresh);
-
 $('#checkbox-outliers').click(function() {
     if ($(this).is(':checked')) {
         taggedOutliers = []
         $('#li-tagged-items').html(getTaggedOutliersList())
         $('#outliers-modal').modal('show');
-        // the checkbox was checked 
-    } else {
-        // the checkbox was unchecked
     }
 });
+
+$('#checkbox-alert').click(function() {
+    if ($(this).is(':checked')) {
+        taggedOutliers = []
+        var params = getQueryParams()
+        var html = ""
+        for (key in params) {
+            html += "<li> " + key + "=" + params[key] + "</li>"
+        }
+        $('#li-alert-parameters').html(html)
+        $('#alert-modal').modal('show');
+    }
+});
+
+$('#checkbox-detrend').click(refresh);
+
+$('#checkbox-autoscale').click(refresh);
 
 </script>
 {% endblock %}

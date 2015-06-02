@@ -1,0 +1,126 @@
+{% macro modal() %}
+<!-- Outlier Modal -->
+<div class="modal fade" id="update-modal" tabindex="-1" role="dialog" aria-labelledby="update-modal-label" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="update-modal-label">Edit Row</h4>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-12">
+          <textarea id="modal-json" class="form-control" rows="10"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button id="btn-submit-update" type="button" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+<script>
+{% macro js(data, col_mapping) %}
+
+var allSelect = false
+$("#btn-select-all").click(function() {
+    allSelect = !allSelect
+    $("[id^=checkbox-]").prop('checked', allSelect);
+});
+
+function getData() {
+    var data = []
+    {% for row in data %}
+    data.push([])
+        {% for col in row %}
+    data[data.length-1].push("{{ col }}")
+        {% endfor %}
+    {% endfor %}
+    return data
+}
+
+$("#btn-clear-selection").click(function() {
+    var data = getData()
+    $("[id^=checkbox-]").each(function(){
+        if ($(this).is(':checked')) {
+            var id = $(this).attr('id')
+            var index = parseInt(id.split('checkbox-')[1])
+            var item = {}
+            {% for k in col_mapping %}
+            item['{{ col_mapping[k] }}'] = data[index][{{ k }}]
+            {% endfor %}
+            $.ajax({
+              type: "POST",
+              url: window.location + 'crud',
+              contentType: "application/json; charset=utf-8",
+              dataType: 'json',
+              async: false,
+              data: JSON.stringify({'delete': item}),
+              complete: function() {
+                console.log("Items deleted")
+              },
+              success: function() {
+                console.log("Items deleted")
+              },
+              failure: function() {
+                console.log("Failed to delete items: " + err)
+              },
+          });
+        }
+    });
+    window.location.reload();
+});
+
+var selectedIndex = 0
+$("[id^=edit-]").click(function(){
+    var id = $(this).attr('id')
+    var index = parseInt(id.split('edit-')[1])
+    selectedIndex = index
+    var row = getData()[index]
+    var row_dict = {}
+    {% for k in col_mapping %}
+    row_dict['{{ col_mapping[k] }}'] = row[{{ k }}]
+    {% endfor %}
+    $("#modal-json").val(JSON.stringify(row_dict, null, 4))
+    $('#update-modal').modal('show')
+});
+
+$("#btn-submit-update").click(function() {
+    $("#update-modal").modal('hide')
+    var data = {}
+    var row = getData()[selectedIndex]
+    var old_row = {}
+    {% for k in col_mapping %}
+    old_row['{{ col_mapping[k] }}'] = row[{{ k }}]
+    {% endfor %}
+    var new_row = JSON.parse($("#modal-json").val())
+    data['delete'] = old_row
+    data['create'] = new_row
+    //alert(JSON.stringify(data, null, 4))
+    $.ajax({
+      type: "POST",
+      url: window.location + 'crud',
+      contentType: "application/json; charset=utf-8",
+      dataType: 'json',
+      data: JSON.stringify(data),
+      complete: function() {
+        console.log("Complete")
+        window.location.reload();
+      },
+      success: function(data) {
+        console.log("Success")
+        window.location.reload();
+      },
+      failure: function(err) {
+        console.log("Failed" + err)
+        window.location.reload();
+      },
+    });
+});
+
+{% endmacro %}
+</script>

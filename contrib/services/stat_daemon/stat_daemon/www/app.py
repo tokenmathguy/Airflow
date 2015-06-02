@@ -217,16 +217,20 @@ class TimeSeries(BaseView):
             for col in df.columns[1:]:
                 df = df.drop(col, 1)
             detrend = request.args.get('detrend', 'false')
+            autoscale = request.args.get('autoscale', 'false')
+            if autoscale.lower() == 'false' or autoscale == '0':
+                autoscale = False
             if detrend.lower() == 'false' or detrend == '0':
                 detrend = False
+            detrend_info = {}
             if detrend:
-                df = stat_daemon.tsa.detrend(df)
-            if not max_tol:
+                df, detrend_info = stat_daemon.tsa.detrend(df)
+            if not max_tol or autoscale:
                 if 'Residuals' in df.columns:
                     max_tol = df['Residuals'].max()
                 else:
                     max_tol = df[df.columns[0]].max()
-            if not min_tol:
+            if not min_tol or autoscale:
                 if 'Residuals' in df.columns:
                     min_tol = df['Residuals'].min()
                 else:
@@ -253,7 +257,8 @@ class TimeSeries(BaseView):
                                             min_min_tol=min_min_tol,
                                             max_max_tol=max_max_tol,
                                             steps=steps,
-                                            outliers=outliers)
+                                            outliers=outliers,
+                                            detrend_info=detrend_info)
             cache.set(cache_key(request), rendered_template)
             return rendered_template
 
@@ -326,7 +331,7 @@ class Tags(BaseView):
                 "%Y-%m-%d %H:%M:%S", time.gmtime(row[5]))
             formatted_rows.append(row)
         return self.render("tags.html", data=formatted_rows)
-    
+
     @expose('/add', methods=['POST'])
     def add_tags(self):
         """
@@ -366,8 +371,8 @@ class Tags(BaseView):
             """.format(**locals())
             logging.info("Executing SQL: \n" + sql)
             rows = db.get_records(sql)
-            tags += [[row[0], stat, category, author, 
-                    comment, int(time.time())] for row in rows]
+            tags += [[row[0], stat, category, author,
+                      comment, int(time.time())] for row in rows]
         if tags:
             db.insert_rows(table + '_tags', tags)
         return ""
@@ -395,6 +400,35 @@ class Tags(BaseView):
             db.run(sql)
         return ""
 
+    @expose('/crud', methods=['POST'])
+    def crud(self):
+        """
+        """
+        table = self.table_name
+        data = json.loads(request.data)
+        if 'delete' in data:
+            data['delete']['table'] = table
+            sql = """
+            DELETE FROM
+                {table}_tags
+            WHERE
+                path = '{source}'
+                AND stat = '{stat}'
+                AND category = {category}
+                AND author = '{author}'
+            ;
+            """.format(**data['delete'])
+            logging.info("Executing SQL: \n" + sql)
+            db = _get_sql_hook(self.sql_conn_id)
+            db.run(sql)
+        if 'create' in data:
+            r = data['create']
+            row = [r['source'], r['stat'], int(r['category']),
+                   r['author'], r['comment'], int(time.time())]
+            db = _get_sql_hook(self.sql_conn_id)
+            db.insert_rows(table + '_tags', [row])
+        return ""
+
 
 class Alerts(BaseView):
 
@@ -408,14 +442,14 @@ class Alerts(BaseView):
         self.sql_conn_id = sql_conn_id
         sql = """
         CREATE TABLE IF NOT EXISTS {table}_alerts (
-            path            TEXT,
-            stat            TEXT,
+            path            TEXT NOT NULL,
+            stat            CHAR(64),
             email           TEXT,
             level           INTEGER,
-            subject         TEXT,
+            subject         CHAR(128),
             message         TEXT,
-            plugin          TEXT,
-            plugin_args     TEXT
+            detrend         TEXT,
+            ts              INT
         )
         ;
         """.format(**locals())
@@ -423,9 +457,110 @@ class Alerts(BaseView):
         db = _get_sql_hook(self.sql_conn_id)
         rows = db.run(sql)
 
+    def parse_param(self, request, param_name, col_name=None):
+        """
+        """
+        if not col_name:
+            col_name = param_name
+        val = request.args.get(param_name)
+        if val:
+            return "{col_name} LIKE '%{val}%'".format(**locals())
+        else:
+            return ''
+
     @expose('/', methods=['GET', 'POST'])
     def index(self):
-        return self.render("alerts.html")
+        """
+        """
+        table = self.table_name
+        where = []
+        where.append(self.parse_param(request, 'source', 'path'))
+        where.append(self.parse_param(request, 'stat'))
+        where.append(self.parse_param(request, 'email'))
+        where.append(self.parse_param(request, 'level'))
+        where = [w for w in where if w != '']
+        where = ' AND '.join(where)
+        if where.replace(' ', ''):
+            where = "WHERE " + where
+        sql = """
+        SELECT
+            *
+        FROM
+            {table}_alerts
+        {where}
+        ;
+        """.format(**locals())
+        logging.info("Executing SQL: \n" + sql)
+        db = _get_sql_hook(self.sql_conn_id)
+        rows = db.get_records(sql)
+        formatted_rows = []
+        for rt in rows:
+            row = list(rt)
+            row[7] = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.gmtime(row[7]))
+            formatted_rows.append(row)
+        return self.render("alerts.html", data=formatted_rows)
+
+
+    @expose('/del', methods=['POST'])
+    def del_alerts(self):
+        """
+        """
+        table = self.table_name
+        data = json.loads(request.data)
+        items = data['items']
+        for item in items:
+            path = item['source']
+            stat = item['stat']
+            email = item['email']
+            sql = """
+            DELETE FROM
+                {table}_alerts
+            WHERE
+                path = '{path}'
+                AND stat = '{stat}'
+                AND email = '{email}'
+            ;
+            """.format(**locals())
+            logging.info("Executing SQL: \n" + sql)
+            db = _get_sql_hook(self.sql_conn_id)
+            db.run(sql)
+        return ""
+
+    @expose('/crud', methods=['POST'])
+    def crud(self):
+        """
+        """
+        table = self.table_name
+        data = json.loads(request.data)
+        if 'delete' in data:
+            data['delete']['table'] = table
+            sql = """
+            DELETE FROM
+                {table}_alerts
+            WHERE
+                path = '{source}'
+                AND stat = '{stat}'
+                AND email = '{email}'
+                AND level = {level}
+                AND subject = '{subject}'
+                AND message = '{message}'
+            ;
+            """.format(**data['delete'])
+            logging.info("Executing SQL: \n" + sql)
+            db = _get_sql_hook(self.sql_conn_id)
+            db.run(sql)
+        if 'create' in data:
+            r = data['create']
+            dt = r['detrend']
+            if isinstance(dt, dict):
+                dt = json.dumps(dt)
+            row = [r['source'], r['stat'], r['email'], int(r['level']),
+                   r['subject'], r['message'], dt, int(time.time())]
+            print row
+            db = _get_sql_hook(self.sql_conn_id)
+            db.insert_rows(table + '_alerts', [row])
+        return ""
 
 
 class StatDaemon(object):

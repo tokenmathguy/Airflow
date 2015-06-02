@@ -34,6 +34,7 @@ def detrend(df):
     unit = np.array([1.0 for i in y0])
     y = []
     delta = []
+    fit_info = []
     # polynomial fit (overfit for now)
     x = range(len(y0))
     p = np.polyfit(x, y0, 6)
@@ -41,6 +42,7 @@ def detrend(df):
     yp = [poly(i) for i in x]
     y.append(yp)
     delta.append(deviation(y0, yp))
+    fit_info.append({'path': '/path/to/detrend/poly.py', 'args': {}})
     # fft fit
     rft = np.fft.rfft(y0)
     for i in range(0, len(rft)):
@@ -49,10 +51,11 @@ def detrend(df):
     yfft = np.fft.irfft(rft, n=len(y0))
     y.append(yfft)
     delta.append(deviation(y0, yfft))
+    fit_info.append({'path': '/path/to/detrend/fft.py', 'args': {}})
     # fit polynomial to wow and yoy growth rates
     # extrapolate each data point from previous week and year
     dd = [sum(d) for d in delta]
     idx = np.argmin(dd)
     df['Trend'] = y[idx]
     df['Residuals'] = delta[idx]
-    return df
+    return df, fit_info[idx]
