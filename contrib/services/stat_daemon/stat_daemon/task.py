@@ -1,3 +1,4 @@
+import copy
 import imp
 import json
 import logging
@@ -172,7 +173,7 @@ class StatsQueue(object):
         return self.tasks
 
 
-class Stats(object):
+class StatsTask(object):
 
     """
     Stats collection instruction.  This class simply helps format
@@ -181,24 +182,25 @@ class Stats(object):
 
     def __init__(self, **kwargs):
         """
-        """
+        """        
         if not kwargs.get('type'):
             logging.error("Stats: argument 'type' required")
         if not kwargs.get('path'):
             logging.error("Stats: argument 'path' required")
         if kwargs.get('queue'):
-            queue.add_task(kwargs.get('queue'))
-        self.args = copy.deepcopy(kwargs)
+            kwargs.get('queue').add_task(self)
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
 
     def __str__(self):
         s = ''
-        for k, v in self.args.iteritems():
+        for k, v in self.__dict__.iteritems():
             if v:
                 s += ' --{} {}'.format(k, v)
         return s
 
 
-class HiveStats(Stats):
+class HiveStats(StatsTask):
 
     """
     Stats collection for hive table
@@ -208,10 +210,10 @@ class HiveStats(Stats):
         """
         """
         kwargs['type'] = 'hive'
-        Stats.__init__(self, **kwargs)
+        StatsTask.__init__(self, **kwargs)
 
 
-class HdfsStats(Stats):
+class HdfsStats(StatsTask):
 
     """
     Stats collection for hdfs path
@@ -221,5 +223,5 @@ class HdfsStats(Stats):
         """
         """
         kwargs['type'] = 'hdfs'
-        Stats.__init__(self, **kwargs)
+        StatsTask.__init__(self, **kwargs)
 

@@ -48,10 +48,12 @@ def update_args(args, task):
     args_ = copy.deepcopy(args)
     args_.type = task.type
     args_.path = task.path
-    if task.plugin:
-        args_.plugin = task.plugin
-    if task.plugin_args:
-        args_.plugin_args = "'{}'".format(json.dumps(task.plugin_args))
+    if hasattr(task, 'plugin'):
+        if task.plugin:
+            args_.plugin = task.plugin
+    if hasattr(task, 'plugin_args'):
+        if task.plugin_args:
+            args_.plugin_args = "'{}'".format(json.dumps(task.plugin_args))
     return args_
 
 
