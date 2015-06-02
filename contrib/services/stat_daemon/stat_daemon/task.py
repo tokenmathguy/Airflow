@@ -11,6 +11,10 @@ from util import (MetadataTable, MetadataReporter,
 
 class TaskList(object):
 
+    """
+    Determines what metadata needs to be updated
+    """
+
     def __init__(self, args):
         require_args(args, {'type', 'path'})
         print args.path
@@ -44,6 +48,13 @@ class TaskList(object):
 
 class TaskLoader(object):
 
+    """
+    Loads metadata upate tasks from one or more job creation scripts
+
+    :param roots: path to folder containing job creation scripts
+    :type roots: str    
+    """
+
     def __init__(self, roots):
         self.tasks = []
         if type(roots) == str:
@@ -70,13 +81,23 @@ class TaskLoader(object):
 
     def get_tasks(self):
         """
+        :return: list of Stat
+        :rtype: list
         """
         return self.tasks
 
 
 class TaskRunner(object):
 
+    """
+    Loads metadata upate tasks from one or more job creation scripts
+    """
+
     def __init__(self, executor, args):
+        """
+        :param executor: the executor to run with
+        :type executor: Executor
+        """
         self.n_tasks = 0
         self.executor = executor
         self.args = args
@@ -88,6 +109,8 @@ class TaskRunner(object):
         """
         args = self.args_
         require_args(args, {'type', 'path'})
+        excluded_args = {'func', 'maxjobs', 'sleep', 'taskfolder',
+                         'parallelism', 'executor'}
         tasks = TaskList(args)
         tbl = MetadataTable(table_name=args.dest,
                             sql_conn_id=args.sql_conn_id)
@@ -100,8 +123,7 @@ class TaskRunner(object):
             for k, v in vars(args).iteritems():
                 if k == 'path':
                     cmd += ' \\\n --path={}'.format(item)
-                elif v and k not in {'func', 'maxjobs', 'sleep',
-                                     'taskfolder', 'executor'}:
+                elif v and k not in excluded_args:
                     cmd += ' \\\n --{}={}'.format(k, v)
             self.executor.execute_async(key, cmd)
             self.n_tasks += 1
@@ -135,6 +157,11 @@ class TaskRunner(object):
 
 class StatsQueue(object):
 
+    """
+    A simple container to hold Stats objects.  A stats queue must be created
+    during a job creation script.
+    """
+
     def __init__(self):
         self.tasks = []
 
@@ -147,20 +174,25 @@ class StatsQueue(object):
 
 class Stats(object):
 
-    def __init__(self, type, path,
-                 plugin=None, plugin_args=None, queue=None):
-        self.type = type
-        self.path = path
-        self.plugin = plugin
-        self.plugin_args = plugin_args
-        if self.plugin_args:
-            self.plugin_args = "'{}'".format(json.dumps(self.plugin_args))
-        if queue:
-            queue.add_task(self)
+    """
+    Stats collection instruction.  This class simply helps format
+    a stat_daemon update command.
+    """
+
+    def __init__(self, **kwargs):
+        """
+        """
+        if not kwargs.get('type'):
+            logging.error("Stats: argument 'type' required")
+        if not kwargs.get('path'):
+            logging.error("Stats: argument 'path' required")
+        if kwargs.get('queue'):
+            queue.add_task(kwargs.get('queue'))
+        self.args = copy.deepcopy(kwargs)
 
     def __str__(self):
         s = ''
-        for k, v in self.__dict__.iteritems():
+        for k, v in self.args.iteritems():
             if v:
                 s += ' --{} {}'.format(k, v)
         return s
@@ -168,13 +200,26 @@ class Stats(object):
 
 class HiveStats(Stats):
 
-    def __init__(self, path, plugin=None, plugin_args=None,
-                 queue=None, presto_conn_id=None):
-        Stats.__init__(self, 'hive', path, plugin, plugin_args, queue)
+    """
+    Stats collection for hive table
+    """
+
+    def __init__(self, **kwargs):
+        """
+        """
+        kwargs['type'] = 'hive'
+        Stats.__init__(self, **kwargs)
 
 
 class HdfsStats(Stats):
 
-    def __init__(self, path, plugin=None, plugin_args=None,
-                 queue=None, hdfs_conn_id=None):
-        Stats.__init__(self, 'hdfs', path, plugin, plugin_args, queue)
+    """
+    Stats collection for hdfs path
+    """
+
+    def __init__(self, **kwargs):
+        """
+        """
+        kwargs['type'] = 'hdfs'
+        Stats.__init__(self, **kwargs)
+

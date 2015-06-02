@@ -97,18 +97,22 @@ def test(args):
 
 def start(args):
     """
-    Start the daemon
+    Run in production mode.  
+
+    This currently runs a pseudo-daemon process (infite while loop)
     """
     executor = None
     if args.executor == 'local':
-        executor = LocalExecutor(parallelism=args.maxjobs)
+        executor = LocalExecutor(parallelism=args.parallelism)
     elif args.executor == 'celery':
-        executor = CeleryExecutor(parallelism=args.maxjobs)
+        executor = CeleryExecutor(parallelism=args.parallelism)
     else:
         logging.error("Unrecognized executor: {}".format(args.executor))
         sys.exit(1)
-    runner = TaskRunner(executor, args)
-    runner.run()
+    while True:
+        runner = TaskRunner(executor, args)
+        runner.run()
+        time.sleep(args.sleep)
 
 
 def version(args):
@@ -145,10 +149,10 @@ def add_args(parser, args=None):
         parser.add_argument("--hdfs_conn_id",
                             help=hdfs_conn_help,
                             default="hdfs_default")
-    if 'hive_conn_id' in args or 'all_conn' in args:
-        parser.add_argument("--hive_conn_id",
+    if 'hiveserver2_conn_id' in args or 'all_conn' in args:
+        parser.add_argument("--hiveserver2_conn_id",
                             help=hive_conn_help,
-                            default="hive_default")
+                            default="hiveserver2_default")
     if 'presto_conn_id' in args or 'all_conn' in args:
         parser.add_argument("--presto_conn_id",
                             help=presto_conn_help,
@@ -170,10 +174,15 @@ def add_args(parser, args=None):
                             type=int,
                             default=1800,
                             help="Time to sleep for")
+    if 'parallelism' in args:
+        parser.add_argument("--parallelism",
+                            type=int,
+                            default=10,
+                            help="Max number of simultaneous jobs to run")
     if 'maxjobs' in args:
         parser.add_argument("--maxjobs",
                             type=int,
-                            default=1000,
+                            default=10000,
                             help="Max number of jobs to enqeue")
     if 'executor' in args:
         parser.add_argument("--executor",
@@ -221,11 +230,12 @@ def get_parser():
     parser_ls_tasks = add_args(parser_ls_tasks,
                                {'type', 'path', 'dest', 'all_conn'})
     parser_ls_tasks.set_defaults(func=ls_tasks)
-    ht = "Start the daemon (run in production mode)"
+    ht = "Run in production mode"
     parser_start = subparsers.add_parser('start', help=ht)
     parser_start = add_args(parser_start,
                             {'plugin', 'type', 'path', 'dest', 'taskfolder',
-                             'sleep', 'all_conn', 'maxjobs', 'executor'})
+                             'sleep', 'all_conn', 'maxjobs',
+                             'parallelism', 'executor'})
     parser_start.set_defaults(func=start)
     ht = "Show stats"
     parser_show = subparsers.add_parser('show_stats', help=ht)
@@ -235,16 +245,17 @@ def get_parser():
                              help="Limit clause")
     parser_show = add_args(parser_show, {'dest', 'filters', 'sql_conn_id'})
     parser_show.set_defaults(func=show_stats)
-    ht = "Run in test mode"
+    ht = "Run in test mode (LocalExecutor, no parallelism)"
     parser_test = subparsers.add_parser('test', help=ht)
     parser_test = add_args(parser_test,
                            {'plugin', 'type', 'path', 'dest', 'taskfolder',
-                            'sleep', 'all_conn', 'maxjobs'})
+                            'all_conn', 'maxjobs'})
     parser_test.set_defaults(func=test)
     ht = "Update stats"
     parser_update = subparsers.add_parser('update', help=ht)
     parser_update = add_args(parser_update,
-                             {'plugin', 'type', 'path', 'dest', 'all_conn'})
+                             {'plugin', 'type', 'path', 'dest',
+                             'all_conn'})
     parser_update.set_defaults(func=update)
     parser_version = subparsers.add_parser('version',
                                            help="Show version")
